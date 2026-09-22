@@ -7,7 +7,6 @@
 .pub/
 build/
 coverage/
-lib/generated_plugin_registrant.dart
 
 # iOS
 ios/Flutter/Flutter.framework/
