@@ -53,7 +53,7 @@ class _LookupScreenState extends State<LookupScreen> {
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      prefixIcon: const Icon(Icons.ip),
+                      prefixIcon: const Icon(Icons.language),
                       suffixIcon: _controller.text.isNotEmpty
                           ? IconButton(
                               icon: const Icon(Icons.clear),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../models/ip_info.dart';
 
 class IpCard extends StatelessWidget {
@@ -44,11 +45,12 @@ class IpCard extends StatelessWidget {
     );
   }
 
-  void _copyToClipboard(BuildContext context) {
-    final clipboard = ipInfo.ip;
-    ScaffoldMessenger.of(context).showSnackBar(
+  Future<void> _copyToClipboard(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    await Clipboard.setData(ClipboardData(text: ipInfo.ip));
+    messenger.showSnackBar(
       SnackBar(
-        content: Text('已复制: $clipboard'),
+        content: Text('已复制: ${ipInfo.ip}'),
         duration: const Duration(seconds: 2),
       ),
     );

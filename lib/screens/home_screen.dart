@@ -15,9 +15,8 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(() {
-      context.read<IpProvider>().getMyIp();
-    });
+    final provider = context.read<IpProvider>();
+    Future.microtask(provider.getMyIp);
   }
 
   @override
