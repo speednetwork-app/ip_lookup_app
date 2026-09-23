@@ -1,31 +1,40 @@
 name: iOS Build & Upload
 
-# 两种触发方式：
-#   push 到 main  -> 只验证能不能编译过（不签名，快）
-#   手动触发      -> 签名构建并上传到 App Store Connect
+# 三种触发方式：
+#   push 到 main   -> 只验证能不能编译过（不签名，快）
+#   push 标签 v*   -> 签名构建并上传到 App Store Connect（发版用）
+#   手动触发       -> 同上，用于补传或调试
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      upload:
-        description: '签名并上传到 App Store Connect'
-        type: boolean
-        default: false
+
+env:
+  FLUTTER_VERSION: '3.47.5'
+  BUNDLE_ID: com.speednetwork.iplookupapp
+  PROFILE_NAME: IP Lookup App Store
 
 jobs:
   build:
-    runs-on: macos-15
-    timeout-minutes: 45
+    runs-on: macos-latest
+    timeout-minutes: 60
 
     steps:
       - uses: actions/checkout@v4
 
+      # 苹果自 2026-04-28 起要求用 iOS 26 SDK 及以上构建，否则上传直接被拒。
+      # 打印出来是为了在构建失败时一眼看出是不是 Xcode 版本不达标。
+      - name: Show toolchain versions
+        run: |
+          xcodebuild -version
+          echo "iOS SDK: $(xcrun --sdk iphoneos --show-sdk-version)"
+
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.24.0'
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
 
       - name: Install dependencies
@@ -34,17 +43,27 @@ jobs:
       - name: Analyze
         run: flutter analyze
 
-      # ---- 以下步骤仅在手动触发且勾选 upload 时执行 ----
+      # 只有发版（打标签）或手动触发时才签名上传，日常 push 只做编译验证
+      - name: Decide whether to publish
+        id: mode
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* || "${{ github.event_name }}" == workflow_dispatch ]]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ---------- 以下仅在发版时执行 ----------
 
       - name: Import signing certificate
-        if: inputs.upload
+        if: steps.mode.outputs.publish == 'true'
         env:
           CERT_P12: ${{ secrets.IOS_DIST_CERT_P12 }}
           CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
           set -euo pipefail
-          # 建一个临时钥匙串，构建完就销毁，不污染 runner
+          # 用临时钥匙串，构建结束即销毁，不残留在 runner 上
           security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
           security default-keychain -s build.keychain
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
@@ -53,29 +72,40 @@ jobs:
           echo "$CERT_P12" | base64 --decode > /tmp/cert.p12
           security import /tmp/cert.p12 -k build.keychain \
             -P "$CERT_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
-          # 允许 codesign 无提示访问私钥，否则 CI 里会卡在授权弹窗
+          # 不加这句，codesign 会卡在图形授权弹窗上，CI 里表现为构建挂死
           security set-key-partition-list -S apple-tool:,apple:,codesign: \
             -s -k "$KEYCHAIN_PASSWORD" build.keychain > /dev/null
           rm /tmp/cert.p12
 
+          echo "已导入的签名身份："
+          security find-identity -v -p codesigning build.keychain
+
       - name: Install provisioning profile
-        if: inputs.upload
+        if: steps.mode.outputs.publish == 'true'
         env:
           PROFILE: ${{ secrets.IOS_PROVISIONING_PROFILE }}
         run: |
           set -euo pipefail
+          # Xcode 16 起改读这个目录；旧路径同时写一份以兼容
+          mkdir -p ~/Library/Developer/Xcode/UserData/Provisioning\ Profiles
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          echo "$PROFILE" | base64 --decode \
-            > ~/Library/MobileDevice/Provisioning\ Profiles/dist.mobileprovision
+          echo "$PROFILE" | base64 --decode > /tmp/dist.mobileprovision
+          UUID=$(security cms -D -i /tmp/dist.mobileprovision \
+            | plutil -extract UUID raw -)
+          cp /tmp/dist.mobileprovision \
+            ~/Library/Developer/Xcode/UserData/Provisioning\ Profiles/"$UUID".mobileprovision
+          cp /tmp/dist.mobileprovision \
+            ~/Library/MobileDevice/Provisioning\ Profiles/"$UUID".mobileprovision
+          echo "描述文件 UUID: $UUID"
 
       - name: Build signed IPA
-        if: inputs.upload
+        if: steps.mode.outputs.publish == 'true'
         env:
           TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           set -euo pipefail
           # 手动签名必须显式声明 Bundle ID 与描述文件的对应关系，
-          # 否则 xcodebuild 不知道该拿哪个 profile 去签。
+          # 否则 xcodebuild 不知道该拿哪个 profile 去签
           cat > /tmp/ExportOptions.plist <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -87,8 +117,8 @@ jobs:
             <key>signingCertificate</key><string>Apple Distribution</string>
             <key>provisioningProfiles</key>
             <dict>
-              <key>com.speednetwork.iplookupapp</key>
-              <string>IP Lookup App Store</string>
+              <key>${{ env.BUNDLE_ID }}</key>
+              <string>${{ env.PROFILE_NAME }}</string>
             </dict>
             <key>uploadSymbols</key><true/>
           </dict>
@@ -97,24 +127,38 @@ jobs:
           flutter build ipa --release --export-options-plist=/tmp/ExportOptions.plist
 
       - name: Upload to App Store Connect
-        if: inputs.upload
+        if: steps.mode.outputs.publish == 'true'
         env:
           KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
           ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
           PRIVATE_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
         run: |
           set -euo pipefail
+          # altool 固定从这个目录按 AuthKey_<KeyID>.p8 的命名找私钥
           mkdir -p ~/private_keys
-          echo "$PRIVATE_KEY" | base64 --decode \
-            > ~/private_keys/AuthKey_${KEY_ID}.p8
-          xcrun altool --upload-app -f build/ios/ipa/*.ipa -t ios \
+          echo "$PRIVATE_KEY" | base64 --decode > ~/private_keys/AuthKey_${KEY_ID}.p8
+          IPA=$(ls build/ios/ipa/*.ipa | head -1)
+          echo "上传 $IPA"
+          xcrun altool --upload-app -f "$IPA" -t ios \
             --apiKey "$KEY_ID" --apiIssuer "$ISSUER_ID"
 
+      # 构建失败时也要能拿到日志排查
+      - name: Upload build artifacts
+        if: always() && steps.mode.outputs.publish == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build
+          path: |
+            build/ios/ipa/*.ipa
+            build/ios/archive/*.xcarchive/Info.plist
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Clean up keychain
-        if: always() && inputs.upload
+        if: always() && steps.mode.outputs.publish == 'true'
         run: security delete-keychain build.keychain || true
 
-      # 编译验证模式：只确认代码能过编译，产物不签名所以无法上传
+      # 日常 push：只确认代码能过编译，产物不签名所以无法上传
       - name: Build unsigned (verification only)
-        if: ${{ !inputs.upload }}
+        if: steps.mode.outputs.publish == 'false'
         run: flutter build ios --release --no-codesign
