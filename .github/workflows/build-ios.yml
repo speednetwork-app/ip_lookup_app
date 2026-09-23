@@ -1,51 +1,112 @@
-name: iOS Build
+name: iOS Build & Upload
 
+# 两种触发方式：
+#   push 到 main  -> 只验证能不能编译过（不签名，快）
+#   手动触发      -> 签名构建并上传到 App Store Connect
 on:
   push:
-    branches: [ main, master, develop ]
+    branches: [main]
   pull_request:
-    branches: [ main, master, develop ]
+    branches: [main]
   workflow_dispatch:
+    inputs:
+      upload:
+        description: '签名并上传到 App Store Connect'
+        type: boolean
+        default: false
 
 jobs:
-  build-ios:
-    runs-on: macos-latest
+  build:
+    runs-on: macos-15
+    timeout-minutes: 45
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.24.0'
           cache: true
 
       - name: Install dependencies
-        run: |
-          flutter pub get
-          cd ios
-          pod install --repo-update
-          cd ..
+        run: flutter pub get
 
-      - name: Build iOS
-        run: |
-          flutter build ios --release --no-codesign
+      - name: Analyze
+        run: flutter analyze
 
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          name: ios-build
-          path: build/ios/iphoneos/Runner.app
+      # ---- 以下步骤仅在手动触发且勾选 upload 时执行 ----
 
-      - name: Create release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: actions/create-release@v1
+      - name: Import signing certificate
+        if: inputs.upload
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
-          body: iOS build for ${{ github.ref }}
-          draft: false
-          prerelease: false
+          CERT_P12: ${{ secrets.IOS_DIST_CERT_P12 }}
+          CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          # 建一个临时钥匙串，构建完就销毁，不污染 runner
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security set-keychain-settings -lut 3600 build.keychain
+
+          echo "$CERT_P12" | base64 --decode > /tmp/cert.p12
+          security import /tmp/cert.p12 -k build.keychain \
+            -P "$CERT_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          # 允许 codesign 无提示访问私钥，否则 CI 里会卡在授权弹窗
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" build.keychain > /dev/null
+          rm /tmp/cert.p12
+
+      - name: Install provisioning profile
+        if: inputs.upload
+        env:
+          PROFILE: ${{ secrets.IOS_PROVISIONING_PROFILE }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo "$PROFILE" | base64 --decode \
+            > ~/Library/MobileDevice/Provisioning\ Profiles/dist.mobileprovision
+
+      - name: Build signed IPA
+        if: inputs.upload
+        env:
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          cat > /tmp/ExportOptions.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>teamID</key><string>${TEAM_ID}</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>uploadSymbols</key><true/>
+          </dict>
+          </plist>
+          EOF
+          flutter build ipa --release --export-options-plist=/tmp/ExportOptions.plist
+
+      - name: Upload to App Store Connect
+        if: inputs.upload
+        env:
+          KEY_ID: ${{ secrets.APPSTORE_KEY_ID }}
+          ISSUER_ID: ${{ secrets.APPSTORE_ISSUER_ID }}
+          PRIVATE_KEY: ${{ secrets.APPSTORE_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/private_keys
+          echo "$PRIVATE_KEY" | base64 --decode \
+            > ~/private_keys/AuthKey_${KEY_ID}.p8
+          xcrun altool --upload-app -f build/ios/ipa/*.ipa -t ios \
+            --apiKey "$KEY_ID" --apiIssuer "$ISSUER_ID"
+
+      - name: Clean up keychain
+        if: always() && inputs.upload
+        run: security delete-keychain build.keychain || true
+
+      # 编译验证模式：只确认代码能过编译，产物不签名所以无法上传
+      - name: Build unsigned (verification only)
+        if: ${{ !inputs.upload }}
+        run: flutter build ios --release --no-codesign
