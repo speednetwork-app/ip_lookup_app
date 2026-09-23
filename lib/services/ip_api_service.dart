@@ -10,6 +10,19 @@ class IpLookupException implements Exception {
   String toString() => message;
 }
 
+/// 批量查询里的单条结果——要么成功，要么带着失败原因，
+/// 一个 IP 查不到不该让整批都没有结果。
+class BatchResult {
+  BatchResult.success(this.query, IpInfo this.info) : error = null;
+  BatchResult.failure(this.query, String this.error) : info = null;
+
+  final String query;
+  final IpInfo? info;
+  final String? error;
+
+  bool get isSuccess => info != null;
+}
+
 /// IP 查询服务。
 ///
 /// 两个数据源都走 HTTPS —— iOS 的 App Transport Security 默认拦截明文 HTTP，
@@ -33,6 +46,48 @@ class IpApiService {
       throw IpLookupException('请输入 IP 地址');
     }
     return _fetch(trimmed);
+  }
+
+  /// 一次查询最多这么多个，再多就该考虑付费接口了。
+  static const maxBatchSize = 20;
+
+  /// 同时在飞的请求数。免费接口按 IP 限流，一次性全发出去很容易被拒，
+  /// 分批发既稳妥也不会慢太多。
+  static const _batchConcurrency = 3;
+
+  /// 批量查询。单条失败不影响其余，结果顺序与输入一致。
+  ///
+  /// [onProgress] 每完成一条回调一次，用于驱动进度显示。
+  Future<List<BatchResult>> queryBatch(
+    List<String> ips, {
+    void Function(int done, int total)? onProgress,
+  }) async {
+    final targets = ips
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toSet() // 用户粘贴的列表里常有重复，没必要查两遍
+        .take(maxBatchSize)
+        .toList();
+
+    final results = List<BatchResult?>.filled(targets.length, null);
+    var done = 0;
+
+    for (var start = 0; start < targets.length; start += _batchConcurrency) {
+      final end = (start + _batchConcurrency).clamp(0, targets.length);
+      await Future.wait([
+        for (var i = start; i < end; i++)
+          _fetch(targets[i]).then(
+            (info) => results[i] = BatchResult.success(targets[i], info),
+            onError: (Object e) =>
+                results[i] = BatchResult.failure(targets[i], e.toString()),
+          ).whenComplete(() {
+            done++;
+            onProgress?.call(done, targets.length);
+          }),
+      ]);
+    }
+
+    return results.whereType<BatchResult>().toList();
   }
 
   /// 先试主数据源。只有在"连不上"时才退到备用源——如果主源已经明确

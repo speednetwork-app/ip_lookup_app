@@ -1,91 +1,62 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
 import '../providers/ip_provider.dart';
+import '../widgets/empty_state.dart';
 import '../widgets/ip_card.dart';
-import 'lookup_screen.dart';
 
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
-
-  @override
-  State<HomeScreen> createState() => _HomeScreenState();
-}
-
-class _HomeScreenState extends State<HomeScreen> {
-  @override
-  void initState() {
-    super.initState();
-    final provider = context.read<IpProvider>();
-    Future.microtask(provider.getMyIp);
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('IP 查询'),
-        elevation: 0,
-      ),
+      appBar: AppBar(title: const Text('我的 IP')),
       body: Consumer<IpProvider>(
         builder: (context, provider, _) {
-          return SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  const SizedBox(height: 20),
-                  Text(
-                    '我的 IP 地址',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  const SizedBox(height: 20),
-                  if (provider.isLoading)
-                    const CircularProgressIndicator()
-                  else if (provider.errorMessage.isNotEmpty)
-                    Column(
-                      children: [
-                        Icon(
-                          Icons.error_outline,
-                          size: 60,
-                          color: Colors.red[300],
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          provider.errorMessage,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.red),
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton.icon(
-                          onPressed: () => provider.getMyIp(),
-                          icon: const Icon(Icons.refresh),
-                          label: const Text('重试'),
-                        ),
-                      ],
-                    )
-                  else if (provider.ipInfo != null)
-                    IpCard(ipInfo: provider.ipInfo!),
-                  const SizedBox(height: 40),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const LookupScreen(),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.search),
-                    label: const Text('查询其他 IP'),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 32,
-                        vertical: 16,
-                      ),
-                    ),
-                  ),
-                ],
+          if (provider.isMyIpLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (provider.myIpError.isNotEmpty) {
+            return ErrorView(
+              message: provider.myIpError,
+              onRetry: provider.loadMyIp,
+            );
+          }
+
+          final info = provider.myIp;
+          if (info == null) {
+            return EmptyState(
+              icon: Icons.public_off,
+              title: '还没有获取到 IP',
+              message: '点击下方按钮获取当前网络的公网 IP 地址',
+              action: FilledButton.icon(
+                onPressed: provider.loadMyIp,
+                icon: const Icon(Icons.refresh),
+                label: const Text('获取'),
               ),
+            );
+          }
+
+          // 下拉刷新——用户换了网络（比如切 Wi-Fi）后会想重新获取
+          return RefreshIndicator(
+            onRefresh: provider.loadMyIp,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(16),
+              children: [
+                IpCard(ipInfo: info),
+                const SizedBox(height: 12),
+                Text(
+                  '下拉可刷新',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
             ),
           );
         },
