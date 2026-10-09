@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/history_provider.dart';
-import '../providers/ip_provider.dart';
 import 'history_screen.dart';
 import 'home_screen.dart';
 import 'lookup_screen.dart';
@@ -22,13 +21,8 @@ class _HomeShellState extends State<HomeShell> {
   @override
   void initState() {
     super.initState();
-    final ip = context.read<IpProvider>();
     final history = context.read<HistoryProvider>();
-    Future.microtask(() async {
-      // 先读历史再查 IP——查询成功会写历史，顺序反了会把刚存的覆盖掉。
-      await history.load();
-      await ip.loadMyIp();
-    });
+    Future.microtask(history.load);
   }
 
   @override

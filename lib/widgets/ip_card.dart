@@ -38,6 +38,28 @@ class IpCard extends StatelessWidget {
             ),
             if (showMap) ...[
               const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.secondaryContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.info_outline, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '地图位置由 IP 地址估算，不是设备 GPS 位置，'
+                        '可能与实际位置存在较大误差。',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
               IpMap(info: ipInfo),
             ],
             const SizedBox(height: 16),
@@ -48,7 +70,7 @@ class IpCard extends StatelessWidget {
             _InfoRow(label: '运营商', value: ipInfo.isp),
             if (ipInfo.hasLocation)
               _InfoRow(
-                label: '坐标',
+                label: '估算坐标',
                 value: '${ipInfo.latitude.toStringAsFixed(4)}, '
                     '${ipInfo.longitude.toStringAsFixed(4)}',
               ),

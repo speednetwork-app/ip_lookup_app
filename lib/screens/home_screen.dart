@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../providers/ip_provider.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/ip_card.dart';
+import 'privacy_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -11,7 +12,21 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('我的 IP')),
+      appBar: AppBar(
+        title: const Text('我的 IP'),
+        actions: [
+          TextButton.icon(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const PrivacyScreen(),
+              ),
+            ),
+            icon: const Icon(Icons.privacy_tip_outlined, size: 18),
+            label: const Text('隐私'),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
       body: Consumer<IpProvider>(
         builder: (context, provider, _) {
           if (provider.isMyIpLoading) {
@@ -29,12 +44,14 @@ class HomeScreen extends StatelessWidget {
           if (info == null) {
             return EmptyState(
               icon: Icons.public_off,
-              title: '还没有获取到 IP',
-              message: '点击下方按钮获取当前网络的公网 IP 地址',
+              title: '查询当前公网 IP',
+              message: '点击后会通过 ipwho.is 或 ipapi.co 查询当前网络的'
+                  '公网 IP 和大致归属地。\n\n'
+                  '不会请求或访问设备 GPS 定位。',
               action: FilledButton.icon(
                 onPressed: provider.loadMyIp,
-                icon: const Icon(Icons.refresh),
-                label: const Text('获取'),
+                icon: const Icon(Icons.public),
+                label: const Text('查询我的公网 IP'),
               ),
             );
           }
