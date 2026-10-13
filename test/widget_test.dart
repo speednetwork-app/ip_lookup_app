@@ -75,7 +75,7 @@ void main() {
     expect(find.text('本地查询历史'), findsOneWidget);
 
     await tester.scrollUntilVisible(
-      find.textContaining('app.pikayun.com、ipwho.is、ipapi.co、OpenStreetMap'),
+      find.textContaining('api.pikayun.com、ipwho.is、ipapi.co、OpenStreetMap'),
       300,
       scrollable: find.byType(Scrollable).last,
     );
@@ -83,7 +83,7 @@ void main() {
     expect(find.textContaining('不申请 GPS 定位权限'), findsOneWidget);
     expect(
       find.textContaining(
-        'app.pikayun.com、ipwho.is、ipapi.co、OpenStreetMap',
+        'api.pikayun.com、ipwho.is、ipapi.co、OpenStreetMap',
       ),
       findsOneWidget,
     );

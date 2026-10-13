@@ -74,7 +74,7 @@ void main() {
 }
 
 Dio _stubDio(dynamic Function(RequestOptions options) responseBuilder) {
-  final dio = Dio(BaseOptions(baseUrl: 'https://app.pikayun.com/api/v1'));
+  final dio = Dio(BaseOptions(baseUrl: 'https://api.pikayun.com/api/v1'));
   dio.interceptors.add(
     InterceptorsWrapper(
       onRequest: (options, handler) {

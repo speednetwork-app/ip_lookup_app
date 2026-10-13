@@ -3,7 +3,7 @@
 ## 构建信息
 
 - App 版本：`1.1.0`
-- 构建号：`5`
+- 构建号：`6`
 - 最低 iOS：12.0
 - 新增能力：已有账号登录、查看和复制订阅地址
 - 未包含：注册、购买、充值、第三方客户端跳转、VPN 配置或 VPN 连接
@@ -45,7 +45,7 @@
 
 ## App 审核备注模板
 
-> Version 1.1 adds an optional sign-in flow for existing users. IP lookup remains fully available without signing in. After authentication, an existing user can view and copy the subscription URL already associated with their account. The app does not offer account creation, purchases, recharge, pricing, or links that direct users to purchase outside the app. This build does not establish a VPN connection, install a VPN profile, or use NEVPNManager. Credentials are sent only to https://app.pikayun.com over HTTPS; the password is not stored, and the authentication token is stored in the iOS Keychain.
+> Version 1.1 adds an optional sign-in flow for existing users. IP lookup remains fully available without signing in. After authentication, an existing user can view and copy the subscription URL already associated with their account. The app does not offer account creation, purchases, recharge, pricing, or links that direct users to purchase outside the app. This build does not establish a VPN connection, install a VPN profile, or use NEVPNManager. Credentials are sent only to https://api.pikayun.com over HTTPS; the password is not stored, and the authentication token is stored in the iOS Keychain.
 >
 > Review steps: Open the “我的” tab, enter the review credentials below, tap “登录”, then use “显示” or “复制” in the subscription card.
 >

@@ -44,7 +44,7 @@ class PrivacyScreen extends StatelessWidget {
             icon: Icons.account_circle_outlined,
             title: '账号登录（可选）',
             description: '仅在你主动登录已有账号时，邮箱和密码会通过 HTTPS '
-                '发送至 app.pikayun.com 完成身份验证。密码不会保存在本机。',
+                '发送至 api.pikayun.com 完成身份验证。密码不会保存在本机。',
           ),
           const _InfoTile(
             icon: Icons.key_outlined,
@@ -89,7 +89,7 @@ class PrivacyScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           const Text(
-            '服务：app.pikayun.com、ipwho.is、ipapi.co、OpenStreetMap\n'
+            '服务：api.pikayun.com、ipwho.is、ipapi.co、OpenStreetMap\n'
             '隐私问题联系：info@robinads.agency',
             textAlign: TextAlign.center,
           ),

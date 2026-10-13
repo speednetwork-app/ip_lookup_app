@@ -25,7 +25,7 @@ class AuthService {
       : _dio = dio ??
             Dio(
               BaseOptions(
-                baseUrl: 'https://app.pikayun.com/api/v1',
+                baseUrl: 'https://api.pikayun.com/api/v1',
                 connectTimeout: const Duration(seconds: 15),
                 receiveTimeout: const Duration(seconds: 15),
                 sendTimeout: const Duration(seconds: 15),
