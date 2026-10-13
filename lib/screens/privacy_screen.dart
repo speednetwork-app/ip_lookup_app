@@ -40,6 +40,18 @@ class PrivacyScreen extends StatelessWidget {
             description: '查询历史最多保存 50 条，仅存于此设备，不会同步到云端。'
                 '卸载 App 会删除这些记录。',
           ),
+          const _InfoTile(
+            icon: Icons.account_circle_outlined,
+            title: '账号登录（可选）',
+            description: '仅在你主动登录已有账号时，邮箱和密码会通过 HTTPS '
+                '发送至 app.pikayun.com 完成身份验证。密码不会保存在本机。',
+          ),
+          const _InfoTile(
+            icon: Icons.key_outlined,
+            title: '登录凭证与订阅地址',
+            description: '登录凭证和账号邮箱保存在 iOS 钥匙串中，用于保持登录状态；'
+                '订阅地址仅在登录后获取，不写入查询历史。退出登录会删除本机登录信息。',
+          ),
           const SizedBox(height: 16),
           Text('我们不会做什么', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 8),
@@ -50,11 +62,12 @@ class PrivacyScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _CheckRow(text: '不读取姓名、邮箱、手机号或通讯录'),
+                  _CheckRow(text: '不读取手机号、通讯录或设备账号'),
                   _CheckRow(text: '不访问照片、相机或麦克风'),
                   _CheckRow(text: '不申请 GPS 定位权限'),
                   _CheckRow(text: '不包含广告、分析 SDK 或用户追踪'),
-                  _CheckRow(text: '不包含账号、付费或应用内购买'),
+                  _CheckRow(text: '不提供注册、付费或应用内购买'),
+                  _CheckRow(text: '不出售或向第三方披露账号数据、登录凭证和订阅地址'),
                 ],
               ),
             ),
@@ -76,7 +89,7 @@ class PrivacyScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           const Text(
-            '第三方服务：ipwho.is、ipapi.co、OpenStreetMap\n'
+            '服务：app.pikayun.com、ipwho.is、ipapi.co、OpenStreetMap\n'
             '隐私问题联系：info@robinads.agency',
             textAlign: TextAlign.center,
           ),
@@ -132,8 +145,8 @@ class _SummaryCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             const Text(
-              '本 App 仅处理完成 IP 查询所需的数据，不访问设备 GPS，'
-              '不包含广告或用户追踪。',
+              'IP 查询无需登录。仅当你主动登录已有账号时，App 才会处理邮箱、'
+              '登录凭证和订阅地址；不访问设备 GPS，不包含广告或用户追踪。',
               textAlign: TextAlign.center,
             ),
           ],

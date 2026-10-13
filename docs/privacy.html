@@ -34,16 +34,18 @@
 <body>
 
 <h1>隐私政策</h1>
-<p class="sub">IP 位置查询 · 最后更新：2026 年 9 月 23 日</p>
+<p class="sub">IP 位置查询 · 最后更新：2026 年 10 月 13 日</p>
 
 <div class="note">
-  <strong>简要说明：</strong>本 App 不需要注册、不收集个人信息、不含广告与第三方统计，
-  也不会把你的任何数据上传到我们的服务器——因为我们没有服务器。
+  <strong>简要说明：</strong>IP 查询无需登录。你可以选择登录已有账号来查看订阅地址。
+  本 App 不提供注册或购买，不含广告、第三方统计或用户追踪。
 </div>
 
 <h2>一、我们收集哪些信息</h2>
-<p><strong>我们不收集任何个人信息。</strong>本 App 没有账号体系，不要求你提供姓名、
-邮箱、电话号码，也不会读取你的通讯录、相册、位置权限或设备标识符。</p>
+<p>IP 查询功能不要求账号。如果你主动使用「我的」页面登录已有账号，我们会处理你输入的
+邮箱和密码以完成身份验证，并获取该账号的订阅地址。密码只通过 HTTPS 发送至账号服务器，
+不会保存在设备上。本 App 不要求姓名、电话号码，也不会读取通讯录、相册、位置权限或
+设备标识符。</p>
 
 <h2>二、数据如何被使用</h2>
 <p>为了完成查询，App 需要把待查询的 IP 地址发送给第三方 IP 数据库服务，并接收返回的
@@ -66,18 +68,33 @@
     <td>OpenStreetMap</td>
     <td>加载对应位置的地图图块</td>
   </tr>
+  <tr>
+    <td>邮箱和密码（仅在主动登录时）</td>
+    <td>app.pikayun.com</td>
+    <td>验证已有账号；密码不会保存在本机</td>
+  </tr>
+  <tr>
+    <td>登录凭证和订阅地址</td>
+    <td>app.pikayun.com</td>
+    <td>保持登录状态，并向已登录用户显示其订阅地址</td>
+  </tr>
 </table>
 
-<p>这些请求不携带任何能识别你个人身份的信息，我们也无法将它们与具体的人关联。</p>
+<p>IP 查询请求不会附带你的账号登录凭证；账号请求也不会附带本地查询历史。</p>
 
 <h2>三、数据存储在哪里</h2>
 <p>查询历史<strong>仅保存在你的设备本地</strong>，最多保留 50 条，不会同步到云端，
 也不会被任何人（包括我们）读取。你可以在「历史」页左滑删除单条记录，
 或点击右上角清空全部。<strong>卸载 App 即彻底删除所有数据。</strong></p>
+<p>登录成功后，登录凭证和账号邮箱保存在 iOS 钥匙串中，以便保持登录状态。密码不保存在
+本机。订阅地址只在登录后从服务器获取，不写入查询历史。你可以在「我的」页退出登录，
+删除本机保存的登录凭证和邮箱。复制订阅地址后，内容将进入系统剪贴板，并受系统剪贴板
+机制管理。</p>
 
-<h2>四、第三方服务</h2>
-<p>本 App 使用以下第三方服务，它们各自的隐私政策适用于相应的数据处理：</p>
+<h2>四、网络服务</h2>
+<p>本 App 连接以下网络服务：</p>
 <ul>
+  <li><a href="https://app.pikayun.com/" target="_blank" rel="noopener">app.pikayun.com</a> —— 已有账号登录和订阅地址</li>
   <li><a href="https://ipwhois.io/privacy" target="_blank" rel="noopener">ipwho.is</a> —— IP 归属地数据</li>
   <li><a href="https://ipapi.co/privacy/" target="_blank" rel="noopener">ipapi.co</a> —— IP 归属地数据（备用源）</li>
   <li><a href="https://osmfoundation.org/wiki/Privacy_Policy" target="_blank" rel="noopener">OpenStreetMap</a> —— 地图图块</li>
@@ -88,7 +105,8 @@
   <li>不含任何广告或广告 SDK</li>
   <li>不含任何分析、埋点或崩溃统计工具</li>
   <li>不进行用户追踪，不请求 App 跟踪透明度（ATT）授权</li>
-  <li>不向任何第三方出售或共享数据</li>
+  <li>不出售、使用或向第三方披露账号数据、登录凭证或订阅地址；这些数据仅用于向你提供登录和订阅地址展示功能</li>
+  <li>不提供账号注册、套餐购买或应用内购买</li>
   <li>不申请定位、相机、麦克风、通讯录等任何系统权限</li>
 </ul>
 
@@ -104,18 +122,22 @@
 <hr>
 
 <h1>Privacy Policy</h1>
-<p class="sub">IP Lookup · Last updated: 23 September 2026</p>
+<p class="sub">IP Lookup · Last updated: 13 October 2026</p>
 
 <div class="note">
-  <strong>In short:</strong> this app requires no account, collects no personal
-  information, contains no ads or third-party analytics, and uploads nothing to
-  our servers — because we do not operate any.
+  <strong>In short:</strong> IP lookup does not require an account. You may
+  optionally sign in to an existing account to view its subscription URL. The
+  app offers no registration or purchasing and contains no ads, third-party
+  analytics or user tracking.
 </div>
 
 <h2>1. Information We Collect</h2>
-<p><strong>We collect no personal information.</strong> The app has no accounts.
-It never asks for your name, email or phone number, and never accesses your
-contacts, photos, location permission or device identifiers.</p>
+<p>IP lookup does not require an account. If you choose to sign in on the
+Account screen, we process the email address and password you enter to
+authenticate your existing account and retrieve its subscription URL. The
+password is sent over HTTPS and is not stored on the device. The app does not
+request your name or phone number and never accesses contacts, photos, location
+permission or device identifiers.</p>
 
 <h2>2. How Data Is Used</h2>
 <p>To perform a lookup, the app sends the IP address being queried to a
@@ -138,19 +160,36 @@ third-party IP database and receives the corresponding location details:</p>
     <td>OpenStreetMap</td>
     <td>Load the map tiles for that area</td>
   </tr>
+  <tr>
+    <td>Email and password (only when you choose to sign in)</td>
+    <td>app.pikayun.com</td>
+    <td>Authenticate an existing account; the password is not stored locally</td>
+  </tr>
+  <tr>
+    <td>Authentication credential and subscription URL</td>
+    <td>app.pikayun.com</td>
+    <td>Keep you signed in and display your subscription URL</td>
+  </tr>
 </table>
 
-<p>These requests carry nothing that identifies you personally, and we have no
-means of linking them to an individual.</p>
+<p>IP lookup requests do not include your account credential, and account
+requests do not include your local lookup history.</p>
 
 <h2>3. Where Data Is Stored</h2>
 <p>Lookup history is stored <strong>only on your device</strong>, capped at 50
 entries. It is never synced to any cloud service and cannot be read by anyone,
 including us. You can swipe to delete individual entries or clear the entire
 history at any time. <strong>Deleting the app removes all of it permanently.</strong></p>
+<p>After a successful sign-in, the authentication credential and account email
+are stored in the iOS Keychain to maintain the session. Your password is not
+stored. The subscription URL is fetched after sign-in and is not written to
+lookup history. Signing out from the Account screen deletes the locally stored
+credential and email. If you copy the subscription URL, it is placed on the
+system clipboard and handled by the operating system's clipboard mechanisms.</p>
 
-<h2>4. Third-Party Services</h2>
+<h2>4. Network Services</h2>
 <ul>
+  <li><a href="https://app.pikayun.com/" target="_blank" rel="noopener">app.pikayun.com</a> — existing-account authentication and subscription URL</li>
   <li><a href="https://ipwhois.io/privacy" target="_blank" rel="noopener">ipwho.is</a> — IP geolocation data</li>
   <li><a href="https://ipapi.co/privacy/" target="_blank" rel="noopener">ipapi.co</a> — IP geolocation data (fallback)</li>
   <li><a href="https://osmfoundation.org/wiki/Privacy_Policy" target="_blank" rel="noopener">OpenStreetMap</a> — map tiles</li>
@@ -161,7 +200,8 @@ history at any time. <strong>Deleting the app removes all of it permanently.</st
   <li>No advertising or ad SDKs</li>
   <li>No analytics, telemetry or crash-reporting tools</li>
   <li>No user tracking; we never request App Tracking Transparency permission</li>
-  <li>No selling or sharing of data with third parties</li>
+  <li>No selling, use or disclosure of account data, authentication credentials or subscription URLs to third parties; this data is used only to provide sign-in and subscription URL display to you</li>
+  <li>No account registration, plan purchasing or in-app purchases</li>
   <li>No location, camera, microphone or contacts permissions requested</li>
 </ul>
 

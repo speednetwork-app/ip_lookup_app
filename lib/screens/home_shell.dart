@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../providers/auth_provider.dart';
 import '../providers/history_provider.dart';
+import 'account_screen.dart';
 import 'history_screen.dart';
 import 'home_screen.dart';
 import 'lookup_screen.dart';
@@ -23,6 +25,8 @@ class _HomeShellState extends State<HomeShell> {
     super.initState();
     final history = context.read<HistoryProvider>();
     Future.microtask(history.load);
+    final auth = context.read<AuthProvider>();
+    Future.microtask(auth.initialize);
   }
 
   @override
@@ -34,6 +38,7 @@ class _HomeShellState extends State<HomeShell> {
           HomeScreen(),
           LookupScreen(),
           HistoryScreen(),
+          AccountScreen(),
         ],
       ),
       bottomNavigationBar: NavigationBar(
@@ -54,6 +59,11 @@ class _HomeShellState extends State<HomeShell> {
             icon: Icon(Icons.history_outlined),
             selectedIcon: Icon(Icons.history),
             label: '历史',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.person_outline),
+            selectedIcon: Icon(Icons.person),
+            label: '我的',
           ),
         ],
       ),

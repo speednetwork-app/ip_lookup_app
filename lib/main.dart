@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'providers/auth_provider.dart';
 import 'providers/history_provider.dart';
 import 'providers/ip_provider.dart';
 import 'screens/home_shell.dart';
@@ -10,12 +11,17 @@ void main() {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  const MyApp({super.key, this.authProvider});
+
+  final AuthProvider? authProvider;
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        ChangeNotifierProvider(
+          create: (_) => authProvider ?? AuthProvider(),
+        ),
         ChangeNotifierProvider(create: (_) => HistoryProvider()),
         // IpProvider 依赖 HistoryProvider 来记录查询——用 Proxy 注入，
         // 这样"查询成功就写历史"只写在一个地方。
