@@ -1,14 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ip_lookup_app/models/account_overview.dart';
 import 'package:ip_lookup_app/providers/auth_provider.dart';
 import 'package:ip_lookup_app/services/auth_service.dart';
 import 'package:ip_lookup_app/services/session_storage.dart';
 
 void main() {
-  test('login stores session and exposes only the subscription URL', () async {
-    final service = _FakeAuthService(
-      loginToken: 'server-token',
-      subscribeUrl: 'https://example.com/sub/secret',
-    );
+  test('login stores session and exposes the account overview', () async {
+    final service = _FakeAuthService(overview: _overview());
     final storage = _MemorySessionStorage();
     final provider = AuthProvider(service: service, storage: storage);
 
@@ -20,17 +18,14 @@ void main() {
     expect(success, isTrue);
     expect(provider.status, AuthStatus.signedIn);
     expect(provider.email, 'user@example.com');
+    expect(provider.overview?.planName, 'Example Plan');
     expect(provider.subscribeUrl, 'https://example.com/sub/secret');
     expect(storage.token, 'server-token');
-    expect(storage.email, 'user@example.com');
     expect(service.requestedToken, 'server-token');
   });
 
-  test('restores an existing session and refreshes its subscription URL',
-      () async {
-    final service = _FakeAuthService(
-      subscribeUrl: 'https://example.com/sub/restored',
-    );
+  test('restores an existing session and refreshes its overview', () async {
+    final service = _FakeAuthService(overview: _overview());
     final storage = _MemorySessionStorage(
       token: 'saved-token',
       email: 'saved@example.com',
@@ -41,12 +36,29 @@ void main() {
 
     expect(provider.status, AuthStatus.signedIn);
     expect(provider.email, 'saved@example.com');
-    expect(provider.subscribeUrl, 'https://example.com/sub/restored');
+    expect(provider.overview?.traffic.totalBytes, 1000);
+  });
+
+  test('keeps stale overview after a non-auth refresh failure', () async {
+    final service = _FakeAuthService(overview: _overview());
+    final storage = _MemorySessionStorage(
+      token: 'saved-token',
+      email: 'saved@example.com',
+    );
+    final provider = AuthProvider(service: service, storage: storage);
+    await provider.initialize();
+    service.overviewError = const AuthException('网络错误');
+
+    await provider.refreshOverview();
+
+    expect(provider.status, AuthStatus.signedIn);
+    expect(provider.overview, isNotNull);
+    expect(provider.error, '网络错误');
   });
 
   test('clears an expired session after an unauthorized response', () async {
     final service = _FakeAuthService(
-      subscribeError: const AuthException(
+      overviewError: const AuthException(
         '登录已失效，请重新登录',
         isUnauthorized: true,
       ),
@@ -66,16 +78,31 @@ void main() {
   });
 }
 
+AccountOverview _overview() => const AccountOverview(
+      state: AccountState.active,
+      planName: 'Example Plan',
+      traffic: TrafficOverview(
+        usedBytes: 100,
+        remainingBytes: 900,
+        totalBytes: 1000,
+        usagePercent: 10,
+      ),
+      expiredAt: null,
+      remainingDays: null,
+      nextResetAt: null,
+      deviceLimit: 3,
+      speedLimitMbps: 0,
+      subscribeUrl: 'https://example.com/sub/secret',
+    );
+
 class _FakeAuthService extends AuthService {
   _FakeAuthService({
-    this.loginToken = 'token',
-    this.subscribeUrl = '',
-    this.subscribeError,
+    this.overview,
+    this.overviewError,
   });
 
-  final String loginToken;
-  final String subscribeUrl;
-  final AuthException? subscribeError;
+  final AccountOverview? overview;
+  AuthException? overviewError;
   String? requestedToken;
 
   @override
@@ -83,14 +110,14 @@ class _FakeAuthService extends AuthService {
     required String email,
     required String password,
   }) async {
-    return LoginResult(token: loginToken);
+    return const LoginResult(token: 'server-token');
   }
 
   @override
-  Future<String> getSubscribeUrl(String token) async {
+  Future<AccountOverview> getMobileOverview(String token) async {
     requestedToken = token;
-    if (subscribeError != null) throw subscribeError!;
-    return subscribeUrl;
+    if (overviewError != null) throw overviewError!;
+    return overview!;
   }
 }
 

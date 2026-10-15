@@ -45,7 +45,7 @@ void main() {
     expect(find.text('登录已有账号'), findsOneWidget);
     expect(find.textContaining('IP 查询功能无需登录'), findsOneWidget);
     expect(find.textContaining('密码不会保存在本机'), findsOneWidget);
-    expect(find.textContaining('不会出售或披露给第三方'), findsOneWidget);
+    expect(find.textContaining('登录凭证安全存储在 iOS 钥匙串中'), findsOneWidget);
     expect(find.text('登录'), findsOneWidget);
 
     await tester.drag(find.byType(ListView).last, const Offset(0, -500));

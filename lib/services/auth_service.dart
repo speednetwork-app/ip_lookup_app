@@ -1,5 +1,7 @@
 import 'package:dio/dio.dart';
 
+import '../models/account_overview.dart';
+
 class AuthException implements Exception {
   const AuthException(this.message, {this.isUnauthorized = false});
 
@@ -16,10 +18,6 @@ class LoginResult {
   final String token;
 }
 
-/// Minimal API client for the first account release.
-///
-/// Deliberately only understands the login token and `subscribe_url`. Plan,
-/// traffic and billing fields returned by the server are ignored.
 class AuthService {
   AuthService({Dio? dio})
       : _dio = dio ??
@@ -70,35 +68,32 @@ class AuthService {
     }
   }
 
-  Future<String> getSubscribeUrl(String token) async {
+  Future<AccountOverview> getMobileOverview(String token) async {
     try {
       final response = await _dio.get<dynamic>(
-        '/user/getSubscribe',
+        '/user/mobile-overview',
         options: Options(headers: {'Authorization': _bearer(token)}),
         queryParameters: {'t': DateTime.now().millisecondsSinceEpoch},
       );
       final body = _asMap(response.data);
       if (body['status'] != 'success') {
-        throw AuthException(_message(body, fallback: '获取订阅地址失败'));
+        throw AuthException(_message(body, fallback: '获取账号信息失败'));
       }
 
-      final data = _asMap(body['data']);
-      final value = data['subscribe_url'];
-      if (value is! String || value.trim().isEmpty) {
-        throw const AuthException('当前账号暂无可用订阅地址');
+      final overview = AccountOverview.fromJson(_asMap(body['data']));
+      if (overview.subscribeUrl.isNotEmpty) {
+        final uri = Uri.tryParse(overview.subscribeUrl);
+        if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) {
+          throw const AuthException('服务器返回的订阅地址无效');
+        }
       }
-      final url = value.trim();
-      final uri = Uri.tryParse(url);
-      if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) {
-        throw const AuthException('服务器返回的订阅地址无效');
-      }
-      return url;
+      return overview;
     } on AuthException {
       rethrow;
     } on DioException catch (error) {
       throw _friendlyDioError(error);
     } catch (_) {
-      throw const AuthException('获取订阅地址失败，请稍后重试');
+      throw const AuthException('获取账号信息失败，请稍后重试');
     }
   }
 
@@ -149,7 +144,7 @@ class AuthService {
       case DioExceptionType.connectionError:
         return const AuthException('无法连接服务器，请检查网络');
       default:
-        return AuthException(loginRequest ? '登录失败，请稍后重试' : '获取订阅地址失败，请稍后重试');
+        return AuthException(loginRequest ? '登录失败，请稍后重试' : '获取账号信息失败，请稍后重试');
     }
   }
 }

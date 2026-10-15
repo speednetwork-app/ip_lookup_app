@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ip_lookup_app/models/account_overview.dart';
 import 'package:ip_lookup_app/services/auth_service.dart';
 
 void main() {
@@ -28,40 +29,57 @@ void main() {
     expect(result.token, 'Bearer server-token');
   });
 
-  test('reads only subscribe_url from the subscription response', () async {
+  test('reads the sanitized mobile overview contract', () async {
     late RequestOptions request;
     final dio = _stubDio((options) {
       request = options;
       return {
         'status': 'success',
         'data': {
+          'account_status': 'active',
+          'plan_name': 'Example Plan',
+          'traffic': {
+            'used_bytes': 100,
+            'remaining_bytes': 900,
+            'total_bytes': 1000,
+            'usage_percent': 10,
+          },
+          'expired_at': null,
+          'remaining_days': null,
+          'next_reset_at': 1790784000,
+          'device_limit': 3,
+          'speed_limit_mbps': 0,
           'subscribe_url': 'https://example.com/sub/secret',
-          'plan': {'name': 'ignored'},
-          'transfer_enable': 123,
-          'd': 45,
         },
       };
     });
     final service = AuthService(dio: dio);
 
-    final url = await service.getSubscribeUrl('plain-token');
+    final overview = await service.getMobileOverview('plain-token');
 
-    expect(request.path, '/user/getSubscribe');
+    expect(request.path, '/user/mobile-overview');
     expect(request.headers['Authorization'], 'Bearer plain-token');
-    expect(url, 'https://example.com/sub/secret');
+    expect(overview.state, AccountState.active);
+    expect(overview.planName, 'Example Plan');
+    expect(overview.traffic.remainingBytes, 900);
+    expect(overview.deviceLimit, 3);
+    expect(overview.subscribeUrl, 'https://example.com/sub/secret');
   });
 
-  test('rejects a non-HTTPS subscription URL', () async {
+  test('rejects a non-HTTPS subscription URL in overview', () async {
     final dio = _stubDio((_) {
       return {
         'status': 'success',
-        'data': {'subscribe_url': 'http://example.com/sub/secret'},
+        'data': {
+          'traffic': <String, dynamic>{},
+          'subscribe_url': 'http://example.com/sub/secret',
+        },
       };
     });
     final service = AuthService(dio: dio);
 
     expect(
-      service.getSubscribeUrl('token'),
+      service.getMobileOverview('token'),
       throwsA(
         isA<AuthException>().having(
           (error) => error.message,

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../models/account_overview.dart';
 import '../services/auth_service.dart';
 import '../services/session_storage.dart';
 
@@ -16,14 +17,15 @@ class AuthProvider with ChangeNotifier {
   AuthStatus _status = AuthStatus.initializing;
   String _email = '';
   String _token = '';
-  String _subscribeUrl = '';
+  AccountOverview? _overview;
   String _error = '';
   bool _refreshing = false;
   bool _initialized = false;
 
   AuthStatus get status => _status;
   String get email => _email;
-  String get subscribeUrl => _subscribeUrl;
+  AccountOverview? get overview => _overview;
+  String get subscribeUrl => _overview?.subscribeUrl ?? '';
   String get error => _error;
   bool get isRefreshing => _refreshing;
   bool get isSignedIn => _status == AuthStatus.signedIn;
@@ -47,7 +49,7 @@ class AuthProvider with ChangeNotifier {
 
       _status = AuthStatus.signedIn;
       notifyListeners();
-      await refreshSubscription();
+      await refreshOverview();
     } catch (_) {
       _status = AuthStatus.signedOut;
       _error = '无法读取安全登录信息，请重新登录';
@@ -70,7 +72,7 @@ class AuthProvider with ChangeNotifier {
       _email = normalizedEmail;
       _status = AuthStatus.signedIn;
       notifyListeners();
-      await refreshSubscription();
+      await refreshOverview();
       return isSignedIn;
     } on AuthException catch (error) {
       _status = AuthStatus.signedOut;
@@ -80,13 +82,8 @@ class AuthProvider with ChangeNotifier {
     } catch (_) {
       try {
         await _storage.clear();
-      } catch (_) {
-        // The user remains signed out even if a partial Keychain write cannot
-        // be cleaned up immediately.
-      }
-      _token = '';
-      _email = '';
-      _subscribeUrl = '';
+      } catch (_) {}
+      _clearMemorySession();
       _status = AuthStatus.signedOut;
       _error = '无法安全保存登录信息，请稍后重试';
       notifyListeners();
@@ -94,30 +91,25 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
-  Future<void> refreshSubscription() async {
+  Future<void> refreshOverview() async {
     if (_token.isEmpty || _refreshing) return;
 
     _refreshing = true;
     _error = '';
     notifyListeners();
     try {
-      _subscribeUrl = await _service.getSubscribeUrl(_token);
+      _overview = await _service.getMobileOverview(_token);
     } on AuthException catch (error) {
-      _subscribeUrl = '';
       if (error.isUnauthorized) {
         try {
           await _storage.clear();
-        } catch (_) {
-          // The expired credential is still discarded from memory. If a
-          // Keychain deletion later fails, it will be rejected again.
-        }
+        } catch (_) {}
         _clearMemorySession();
         _status = AuthStatus.signedOut;
       }
       _error = error.message;
     } catch (_) {
-      _subscribeUrl = '';
-      _error = '获取订阅地址失败，请稍后重试';
+      _error = '获取账号信息失败，请稍后重试';
     } finally {
       _refreshing = false;
       notifyListeners();
@@ -147,6 +139,6 @@ class AuthProvider with ChangeNotifier {
   void _clearMemorySession() {
     _token = '';
     _email = '';
-    _subscribeUrl = '';
+    _overview = null;
   }
 }

@@ -48,9 +48,10 @@ class PrivacyScreen extends StatelessWidget {
           ),
           const _InfoTile(
             icon: Icons.key_outlined,
-            title: '登录凭证与订阅地址',
+            title: '账号概览与登录凭证',
             description: '登录凭证和账号邮箱保存在 iOS 钥匙串中，用于保持登录状态；'
-                '订阅地址仅在登录后获取，不写入查询历史。退出登录会删除本机登录信息。',
+                '套餐状态、流量用量、有效期、使用限制和订阅地址仅在登录后获取，'
+                '不写入查询历史。退出登录会删除本机登录信息。',
           ),
           const SizedBox(height: 16),
           Text('我们不会做什么', style: Theme.of(context).textTheme.titleLarge),
@@ -146,7 +147,7 @@ class _SummaryCard extends StatelessWidget {
             const SizedBox(height: 8),
             const Text(
               'IP 查询无需登录。仅当你主动登录已有账号时，App 才会处理邮箱、'
-              '登录凭证和订阅地址；不访问设备 GPS，不包含广告或用户追踪。',
+              '登录凭证和只读账号概览；不访问设备 GPS，不包含广告或用户追踪。',
               textAlign: TextAlign.center,
             ),
           ],
