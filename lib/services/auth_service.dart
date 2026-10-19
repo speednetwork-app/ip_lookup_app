@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
 
 import '../models/account_overview.dart';
+import '../models/account_notice.dart';
+import '../models/traffic_trend.dart';
 
 class AuthException implements Exception {
   const AuthException(this.message, {this.isUnauthorized = false});
@@ -94,6 +96,62 @@ class AuthService {
       throw _friendlyDioError(error);
     } catch (_) {
       throw const AuthException('获取账号信息失败，请稍后重试');
+    }
+  }
+
+  Future<TrafficTrend> getMobileTraffic(
+    String token,
+    TrafficRange range,
+  ) async {
+    try {
+      final response = await _dio.get<dynamic>(
+        '/user/mobile-traffic',
+        options: Options(headers: {'Authorization': _bearer(token)}),
+        queryParameters: {
+          'range': range.apiValue,
+          't': DateTime.now().millisecondsSinceEpoch,
+        },
+      );
+      final body = _asMap(response.data);
+      if (body['status'] != 'success') {
+        throw AuthException(_message(body, fallback: '获取流量趋势失败'));
+      }
+      return TrafficTrend.fromJson(_asMap(body['data']));
+    } on AuthException {
+      rethrow;
+    } on DioException catch (error) {
+      throw _friendlyDioError(error);
+    } catch (_) {
+      throw const AuthException('获取流量趋势失败，请稍后重试');
+    }
+  }
+
+  Future<List<AccountNotice>> getAccountNotices(String token) async {
+    try {
+      final response = await _dio.get<dynamic>(
+        '/user/notice/fetch',
+        options: Options(headers: {'Authorization': _bearer(token)}),
+        queryParameters: {'t': DateTime.now().millisecondsSinceEpoch},
+      );
+      final body = _asMap(response.data);
+      final rawData = body['data'];
+      if (body['status'] != 'success' || rawData is! List) {
+        throw AuthException(_message(body, fallback: '获取系统公告失败'));
+      }
+      return rawData
+          .whereType<Map>()
+          .map((item) => AccountNotice.fromJson(
+                Map<String, dynamic>.from(item),
+              ))
+          .where((notice) => notice.isVisible)
+          .take(5)
+          .toList(growable: false);
+    } on AuthException {
+      rethrow;
+    } on DioException catch (error) {
+      throw _friendlyDioError(error);
+    } catch (_) {
+      throw const AuthException('获取系统公告失败，请稍后重试');
     }
   }
 

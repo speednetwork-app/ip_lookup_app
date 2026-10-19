@@ -48,10 +48,11 @@ class PrivacyScreen extends StatelessWidget {
           ),
           const _InfoTile(
             icon: Icons.key_outlined,
-            title: '账号概览与登录凭证',
+            title: '账号数据与本地缓存',
             description: '登录凭证和账号邮箱保存在 iOS 钥匙串中，用于保持登录状态；'
-                '套餐状态、流量用量、有效期、使用限制和订阅地址仅在登录后获取，'
-                '不写入查询历史。退出登录会删除本机登录信息。',
+                '套餐状态、流量趋势、有效期和使用限制会安全缓存于本机，以便网络异常时显示。'
+                '系统公告仅在登录后读取。订阅地址和公告不会写入普通缓存。'
+                '退出登录会删除本机账号数据。',
           ),
           const SizedBox(height: 16),
           Text('我们不会做什么', style: Theme.of(context).textTheme.titleLarge),

@@ -3,7 +3,11 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../models/account_overview.dart';
+import '../models/traffic_trend.dart';
 import '../providers/auth_provider.dart';
+import '../widgets/account_insights_card.dart';
+import '../widgets/account_notices_card.dart';
+import '../widgets/traffic_trend_card.dart';
 import 'privacy_screen.dart';
 
 class AccountScreen extends StatefulWidget {
@@ -51,7 +55,7 @@ class _AccountScreenState extends State<AccountScreen> {
   Widget _buildAccount(BuildContext context, AuthProvider auth) {
     final overview = auth.overview;
     return RefreshIndicator.adaptive(
-      onRefresh: auth.refreshOverview,
+      onRefresh: auth.refreshAccountData,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
@@ -65,25 +69,47 @@ class _AccountScreenState extends State<AccountScreen> {
           if (overview == null)
             _OverviewLoading(
               refreshing: auth.isRefreshing,
-              onRetry: auth.refreshOverview,
+              onRetry: auth.refreshAccountData,
             )
           else ...[
-            _AccountHeader(email: auth.email, overview: overview),
+            _AccountHeader(
+              email: auth.email,
+              overview: overview,
+              subscribeUrl: overview.subscribeUrl,
+              subscribeRevealed: _showSubscribeUrl,
+              onToggleSubscribe: () => setState(
+                () => _showSubscribeUrl = !_showSubscribeUrl,
+              ),
+              onCopySubscribe: () => _copy(context, overview.subscribeUrl),
+            ),
+            if (_AccountAlert.from(overview) case final alert?) ...[
+              const SizedBox(height: 12),
+              alert,
+            ],
             const SizedBox(height: 12),
             _TrafficCard(traffic: overview.traffic),
-            const SizedBox(height: 12),
-            _DetailsCard(overview: overview),
-            if (overview.subscribeUrl.isNotEmpty) ...[
+            if (auth.trafficTrendFor(TrafficRange.sevenDays) != null ||
+                auth.trafficTrendFor(TrafficRange.thirtyDays) != null) ...[
               const SizedBox(height: 12),
-              _SubscriptionCard(
-                url: overview.subscribeUrl,
-                revealed: _showSubscribeUrl,
-                onToggle: () => setState(
-                  () => _showSubscribeUrl = !_showSubscribeUrl,
-                ),
-                onCopy: () => _copy(context, overview.subscribeUrl),
+              AccountInsightsCard(
+                overview: overview,
+                sevenDayTrend: auth.trafficTrendFor(TrafficRange.sevenDays),
+                thirtyDayTrend: auth.trafficTrendFor(TrafficRange.thirtyDays),
               ),
             ],
+            const SizedBox(height: 12),
+            TrafficTrendCard(
+              trend: auth.trafficTrend,
+              selectedRange: auth.selectedTrafficRange,
+              loading: auth.isTrafficLoading,
+              onRangeChanged: auth.selectTrafficRange,
+            ),
+            if (auth.notices.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              AccountNoticesCard(notices: auth.notices),
+            ],
+            const SizedBox(height: 12),
+            _DetailsCard(overview: overview),
           ],
           const SizedBox(height: 20),
           OutlinedButton.icon(
@@ -119,65 +145,278 @@ class _AccountScreenState extends State<AccountScreen> {
   }
 }
 
+class _AccountAlert extends StatelessWidget {
+  const _AccountAlert({
+    required this.icon,
+    required this.title,
+    required this.message,
+    required this.isCritical,
+  });
+
+  final IconData icon;
+  final String title;
+  final String message;
+  final bool isCritical;
+
+  static _AccountAlert? from(AccountOverview overview) {
+    switch (overview.state) {
+      case AccountState.suspended:
+        return const _AccountAlert(
+          icon: Icons.pause_circle_outline,
+          title: '账号已停用',
+          message: '当前账号暂不可用，请联系服务提供方确认。',
+          isCritical: true,
+        );
+      case AccountState.expired:
+        return const _AccountAlert(
+          icon: Icons.event_busy_outlined,
+          title: '套餐已过期',
+          message: '账号套餐已经到期，请留意服务状态。',
+          isCritical: true,
+        );
+      case AccountState.trafficExhausted:
+        return const _AccountAlert(
+          icon: Icons.data_usage_outlined,
+          title: '流量已用尽',
+          message: '本周期可用流量为零，请等待下次重置。',
+          isCritical: true,
+        );
+      case AccountState.inactive:
+        return const _AccountAlert(
+          icon: Icons.info_outline,
+          title: '账号未启用',
+          message: '当前账号尚未启用，请联系服务提供方确认。',
+          isCritical: true,
+        );
+      case AccountState.active:
+      case AccountState.unknown:
+        break;
+    }
+
+    if (overview.remainingDays != null && overview.remainingDays! <= 7) {
+      return _AccountAlert(
+        icon: Icons.schedule_outlined,
+        title: '套餐即将到期',
+        message: '剩余 ${overview.remainingDays} 天，请及时关注有效期。',
+        isCritical: false,
+      );
+    }
+    final traffic = overview.traffic;
+    if (traffic.totalBytes > 0 &&
+        traffic.remainingBytes / traffic.totalBytes <= 0.1) {
+      return const _AccountAlert(
+        icon: Icons.warning_amber_rounded,
+        title: '剩余流量不足 10%',
+        message: '建议留意本周期流量使用情况。',
+        isCritical: false,
+      );
+    }
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final color = isCritical ? scheme.error : const Color(0xFF8A5B00);
+    final background = isCritical
+        ? scheme.errorContainer.withValues(alpha: 0.6)
+        : const Color(0xFFFFF2CF);
+    return Semantics(
+      liveRegion: true,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style:
+                          TextStyle(fontWeight: FontWeight.w700, color: color)),
+                  const SizedBox(height: 2),
+                  Text(message),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _AccountHeader extends StatelessWidget {
-  const _AccountHeader({required this.email, required this.overview});
+  const _AccountHeader({
+    required this.email,
+    required this.overview,
+    required this.subscribeUrl,
+    required this.subscribeRevealed,
+    required this.onToggleSubscribe,
+    required this.onCopySubscribe,
+  });
 
   final String email;
   final AccountOverview overview;
+  final String subscribeUrl;
+  final bool subscribeRevealed;
+  final VoidCallback onToggleSubscribe;
+  final VoidCallback onCopySubscribe;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return _SectionCard(
       color: scheme.primaryContainer.withValues(alpha: 0.46),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
         children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: scheme.primaryContainer,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(Icons.person_outline, color: scheme.primary),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: scheme.primaryContainer,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.person_outline, color: scheme.primary),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Text(
-                        overview.planName.isEmpty ? '当前方案' : overview.planName,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style:
-                            Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            overview.planName.isEmpty
+                                ? '当前方案'
+                                : overview.planName,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        _StatusBadge(state: overview.state),
+                      ],
                     ),
-                    const SizedBox(width: 8),
-                    _StatusBadge(state: overview.state),
+                    const SizedBox(height: 5),
+                    Text(
+                      email,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 5),
-                Text(
-                  email,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
-                ),
-              ],
+              ),
+            ],
+          ),
+          if (subscribeUrl.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            Divider(height: 1, color: scheme.outlineVariant),
+            const SizedBox(height: 10),
+            _InlineSubscription(
+              url: subscribeUrl,
+              revealed: subscribeRevealed,
+              onToggle: onToggleSubscribe,
+              onCopy: onCopySubscribe,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _InlineSubscription extends StatelessWidget {
+  const _InlineSubscription({
+    required this.url,
+    required this.revealed,
+    required this.onToggle,
+    required this.onCopy,
+  });
+
+  final String url;
+  final bool revealed;
+  final VoidCallback onToggle;
+  final VoidCallback onCopy;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      children: [
+        Row(
+          children: [
+            Icon(Icons.link_rounded, size: 20, color: scheme.primary),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '订阅地址',
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                  ),
+                  Text(
+                    revealed ? '当前已显示，请注意保护' : '默认隐藏，请勿分享给他人',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              tooltip: revealed ? '隐藏订阅地址' : '显示订阅地址',
+              onPressed: onToggle,
+              icon: Icon(
+                revealed
+                    ? Icons.visibility_off_outlined
+                    : Icons.visibility_outlined,
+              ),
+            ),
+            IconButton.filledTonal(
+              tooltip: '复制订阅地址',
+              onPressed: onCopy,
+              icon: const Icon(Icons.copy_outlined),
+            ),
+          ],
+        ),
+        if (revealed) ...[
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: scheme.surface.withValues(alpha: 0.72),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: SelectableText(
+              url,
+              style: Theme.of(context).textTheme.bodySmall,
             ),
           ),
         ],
-      ),
+      ],
     );
   }
 }
@@ -190,7 +429,9 @@ class _TrafficCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final hasQuota = traffic.totalBytes > 0;
     final progress = (traffic.usagePercent / 100).clamp(0.0, 1.0);
+    final remainingPercent = (100 - traffic.usagePercent).clamp(0.0, 100.0);
     return _SectionCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -206,54 +447,151 @@ class _TrafficCard extends StatelessWidget {
                     ),
               ),
               const Spacer(),
-              Text(
-                '${traffic.usagePercent.toStringAsFixed(1)}%',
-                style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: scheme.primary,
-                      fontWeight: FontWeight.w700,
-                    ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: scheme.primaryContainer.withValues(alpha: 0.65),
+                  borderRadius: BorderRadius.circular(99),
+                ),
+                child: Text(
+                  hasQuota
+                      ? '剩余 ${remainingPercent.toStringAsFixed(1)}%'
+                      : '不限额度',
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: scheme.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 18),
-          Text('剩余流量', style: Theme.of(context).textTheme.bodySmall),
-          const SizedBox(height: 2),
-          Text(
-            _formatBytes(traffic.remainingBytes),
-            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: scheme.primary,
-                ),
-          ),
-          const SizedBox(height: 14),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(99),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 9,
-              backgroundColor: scheme.surfaceContainerHighest,
-            ),
-          ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 20),
           Row(
             children: [
               Expanded(
-                child: _Metric(
-                  label: '已用',
-                  value: _formatBytes(traffic.usedBytes),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '剩余可用',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        hasQuota
+                            ? _formatBytes(traffic.remainingBytes)
+                            : '不限额度',
+                        style:
+                            Theme.of(context).textTheme.headlineLarge?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: scheme.primary,
+                                ),
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      hasQuota
+                          ? '总额度 ${_formatBytes(traffic.totalBytes)}'
+                          : '当前套餐未设置流量上限',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                    ),
+                  ],
                 ),
               ),
-              Container(width: 1, height: 32, color: scheme.outlineVariant),
-              Expanded(
-                child: _Metric(
-                  label: '总流量',
-                  value: _formatBytes(traffic.totalBytes),
-                  alignEnd: true,
-                ),
-              ),
+              const SizedBox(width: 18),
+              _UsageRing(progress: progress, unlimited: !hasQuota),
             ],
           ),
+          const SizedBox(height: 20),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _Metric(
+                    label: '已使用',
+                    value: _formatBytes(traffic.usedBytes),
+                  ),
+                ),
+                Container(width: 1, height: 34, color: scheme.outlineVariant),
+                Expanded(
+                  child: _Metric(
+                    label: '使用进度',
+                    value: hasQuota
+                        ? '${traffic.usagePercent.toStringAsFixed(1)}%'
+                        : '不限',
+                    alignEnd: true,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+class _UsageRing extends StatelessWidget {
+  const _UsageRing({required this.progress, required this.unlimited});
+
+  final double progress;
+  final bool unlimited;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Semantics(
+      label: unlimited
+          ? '当前套餐不限流量额度'
+          : '流量已使用 ${(progress * 100).toStringAsFixed(1)}%',
+      child: SizedBox.square(
+        dimension: 78,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            SizedBox.square(
+              dimension: 78,
+              child: CircularProgressIndicator(
+                value: progress,
+                strokeWidth: 9,
+                strokeCap: StrokeCap.round,
+                backgroundColor: scheme.surfaceContainerHighest,
+              ),
+            ),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  unlimited ? '∞' : '${(progress * 100).toStringAsFixed(1)}%',
+                  style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: scheme.primary,
+                      ),
+                ),
+                Text(
+                  unlimited ? '不限' : '已用',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -318,88 +656,6 @@ class _DetailsCard extends StatelessWidget {
                 ? '不限速'
                 : '${overview.speedLimitMbps} Mbps',
             showDivider: false,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SubscriptionCard extends StatelessWidget {
-  const _SubscriptionCard({
-    required this.url,
-    required this.revealed,
-    required this.onToggle,
-    required this.onCopy,
-  });
-
-  final String url;
-  final bool revealed;
-  final VoidCallback onToggle;
-  final VoidCallback onCopy;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return _SectionCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _SectionTitle(icon: Icons.link_rounded, title: '订阅地址'),
-          const SizedBox(height: 12),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(13),
-            decoration: BoxDecoration(
-              color: scheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: SelectableText(
-              revealed ? url : _maskedUrl(url),
-              maxLines: revealed ? null : 2,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: onToggle,
-                  icon: Icon(
-                    revealed
-                        ? Icons.visibility_off_outlined
-                        : Icons.visibility_outlined,
-                    size: 19,
-                  ),
-                  label: Text(revealed ? '隐藏' : '显示'),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: FilledButton.icon(
-                  onPressed: onCopy,
-                  icon: const Icon(Icons.copy_outlined, size: 19),
-                  label: const Text('复制'),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(Icons.lock_outline,
-                  size: 15, color: scheme.onSurfaceVariant),
-              const SizedBox(width: 5),
-              Expanded(
-                child: Text(
-                  '订阅地址包含访问凭证，请勿分享给他人。',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
-                ),
-              ),
-            ],
           ),
         ],
       ),
@@ -777,12 +1033,6 @@ class _LoginViewState extends State<_LoginView> {
   }
 }
 
-String _maskedUrl(String value) {
-  final uri = Uri.tryParse(value);
-  if (uri == null || uri.host.isEmpty) return '••••••••••••';
-  return '${uri.scheme}://${uri.host}/••••••••••••';
-}
-
 String _formatDate(DateTime value) {
   String two(int number) => number.toString().padLeft(2, '0');
   return '${value.year}-${two(value.month)}-${two(value.day)}';
@@ -796,10 +1046,18 @@ String _formatBytes(int bytes) {
     value /= 1024;
     unit++;
   }
-  final digits = value >= 100 || unit == 0
-      ? 0
-      : value >= 10
-          ? 1
-          : 2;
+  int digitsFor(double amount, int currentUnit) =>
+      amount >= 100 || currentUnit == 0
+          ? 0
+          : amount >= 10
+              ? 1
+              : 2;
+  var digits = digitsFor(value, unit);
+  if (unit < units.length - 1 &&
+      double.parse(value.toStringAsFixed(digits)) >= 1024) {
+    value /= 1024;
+    unit++;
+    digits = digitsFor(value, unit);
+  }
   return '${value.toStringAsFixed(digits)} ${units[unit]}';
 }

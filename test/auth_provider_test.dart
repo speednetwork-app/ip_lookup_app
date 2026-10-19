@@ -1,6 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ip_lookup_app/models/account_overview.dart';
+import 'package:ip_lookup_app/models/account_notice.dart';
+import 'package:ip_lookup_app/models/traffic_trend.dart';
 import 'package:ip_lookup_app/providers/auth_provider.dart';
+import 'package:ip_lookup_app/services/account_cache.dart';
 import 'package:ip_lookup_app/services/auth_service.dart';
 import 'package:ip_lookup_app/services/session_storage.dart';
 
@@ -8,7 +11,11 @@ void main() {
   test('login stores session and exposes the account overview', () async {
     final service = _FakeAuthService(overview: _overview());
     final storage = _MemorySessionStorage();
-    final provider = AuthProvider(service: service, storage: storage);
+    final provider = AuthProvider(
+      service: service,
+      storage: storage,
+      cache: _MemoryAccountCache(),
+    );
 
     final success = await provider.login(
       email: ' user@example.com ',
@@ -30,7 +37,11 @@ void main() {
       token: 'saved-token',
       email: 'saved@example.com',
     );
-    final provider = AuthProvider(service: service, storage: storage);
+    final provider = AuthProvider(
+      service: service,
+      storage: storage,
+      cache: _MemoryAccountCache(),
+    );
 
     await provider.initialize();
 
@@ -45,7 +56,11 @@ void main() {
       token: 'saved-token',
       email: 'saved@example.com',
     );
-    final provider = AuthProvider(service: service, storage: storage);
+    final provider = AuthProvider(
+      service: service,
+      storage: storage,
+      cache: _MemoryAccountCache(),
+    );
     await provider.initialize();
     service.overviewError = const AuthException('网络错误');
 
@@ -67,7 +82,11 @@ void main() {
       token: 'expired-token',
       email: 'saved@example.com',
     );
-    final provider = AuthProvider(service: service, storage: storage);
+    final provider = AuthProvider(
+      service: service,
+      storage: storage,
+      cache: _MemoryAccountCache(),
+    );
 
     await provider.initialize();
 
@@ -118,6 +137,56 @@ class _FakeAuthService extends AuthService {
     requestedToken = token;
     if (overviewError != null) throw overviewError!;
     return overview!;
+  }
+
+  @override
+  Future<TrafficTrend> getMobileTraffic(
+    String token,
+    TrafficRange range,
+  ) async {
+    return _trend(range);
+  }
+
+  @override
+  Future<List<AccountNotice>> getAccountNotices(String token) async => const [];
+}
+
+TrafficTrend _trend(TrafficRange range) => TrafficTrend(
+      range: range,
+      periodStart: DateTime(2026, 10, 10),
+      periodEnd: DateTime(2026, 10, 16),
+      uploadBytes: 100,
+      downloadBytes: 200,
+      usedBytes: 300,
+      averageDailyBytes: 43,
+      updatedAt: DateTime(2026, 10, 16, 12),
+      daily: const [],
+    );
+
+class _MemoryAccountCache implements AccountCache {
+  AccountOverview? overview;
+  final trends = <TrafficRange, TrafficTrend>{};
+
+  @override
+  Future<void> clear() async {
+    overview = null;
+    trends.clear();
+  }
+
+  @override
+  Future<AccountOverview?> readOverview() async => overview;
+
+  @override
+  Future<TrafficTrend?> readTrend(TrafficRange range) async => trends[range];
+
+  @override
+  Future<void> writeOverview(AccountOverview overview) async {
+    this.overview = AccountOverview.fromJson(overview.toCacheJson());
+  }
+
+  @override
+  Future<void> writeTrend(TrafficTrend trend) async {
+    trends[trend.range] = trend;
   }
 }
 

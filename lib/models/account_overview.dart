@@ -30,6 +30,13 @@ class TrafficOverview {
       usagePercent: _toDouble(json['usage_percent']).clamp(0, 100),
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'used_bytes': usedBytes,
+        'remaining_bytes': remainingBytes,
+        'total_bytes': totalBytes,
+        'usage_percent': usagePercent,
+      };
 }
 
 class AccountOverview {
@@ -74,6 +81,19 @@ class AccountOverview {
       subscribeUrl: _toText(json['subscribe_url']),
     );
   }
+
+  /// A deliberately limited representation for local display cache.
+  /// The subscription URL and all authentication material are excluded.
+  Map<String, dynamic> toCacheJson() => {
+        'account_status': _accountStateText(state),
+        'plan_name': planName,
+        'traffic': traffic.toJson(),
+        'expired_at': _toEpochSeconds(expiredAt),
+        'remaining_days': remainingDays,
+        'next_reset_at': _toEpochSeconds(nextResetAt),
+        'device_limit': deviceLimit,
+        'speed_limit_mbps': speedLimitMbps,
+      };
 }
 
 AccountState _accountState(dynamic value) {
@@ -90,6 +110,23 @@ AccountState _accountState(dynamic value) {
       return AccountState.inactive;
     default:
       return AccountState.unknown;
+  }
+}
+
+String _accountStateText(AccountState value) {
+  switch (value) {
+    case AccountState.active:
+      return 'active';
+    case AccountState.expired:
+      return 'expired';
+    case AccountState.suspended:
+      return 'suspended';
+    case AccountState.trafficExhausted:
+      return 'traffic_exhausted';
+    case AccountState.inactive:
+      return 'inactive';
+    case AccountState.unknown:
+      return 'unknown';
   }
 }
 
@@ -123,3 +160,6 @@ double _toDouble(dynamic value) {
 }
 
 String _toText(dynamic value) => value is String ? value.trim() : '';
+
+int? _toEpochSeconds(DateTime? value) =>
+    value == null ? null : value.toUtc().millisecondsSinceEpoch ~/ 1000;

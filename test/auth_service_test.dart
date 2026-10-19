@@ -1,6 +1,8 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ip_lookup_app/models/account_overview.dart';
+import 'package:ip_lookup_app/models/account_notice.dart';
+import 'package:ip_lookup_app/models/traffic_trend.dart';
 import 'package:ip_lookup_app/services/auth_service.dart';
 
 void main() {
@@ -88,6 +90,69 @@ void main() {
         ),
       ),
     );
+  });
+
+  test('reads the sanitized mobile traffic contract', () async {
+    late RequestOptions request;
+    final dio = _stubDio((options) {
+      request = options;
+      return {
+        'status': 'success',
+        'data': {
+          'range': '7d',
+          'period_start': '2026-10-10',
+          'period_end': '2026-10-16',
+          'upload_bytes': 100,
+          'download_bytes': 200,
+          'used_bytes': 300,
+          'average_daily_bytes': 43,
+          'updated_at': 1792137600,
+          'daily': [
+            {
+              'date': '2026-10-16',
+              'upload_bytes': 10,
+              'download_bytes': 20,
+              'total_bytes': 30,
+            }
+          ],
+        },
+      };
+    });
+    final service = AuthService(dio: dio);
+
+    final trend =
+        await service.getMobileTraffic('plain-token', TrafficRange.sevenDays);
+
+    expect(request.path, '/user/mobile-traffic');
+    expect(request.queryParameters['range'], '7d');
+    expect(request.headers['Authorization'], 'Bearer plain-token');
+    expect(trend.usedBytes, 300);
+    expect(trend.daily.single.totalBytes, 30);
+  });
+
+  test('reads and sanitizes account announcements', () async {
+    final dio = _stubDio((options) {
+      return {
+        'status': 'success',
+        'data': [
+          {
+            'id': 8,
+            'title': '<b>维护通知</b>',
+            'content': '<p>今晚维护</p><script>bad()</script>请稍后重试',
+            'updated_at': 1792137600,
+          }
+        ],
+      };
+    });
+    final service = AuthService(dio: dio);
+
+    final notices = await service.getAccountNotices('plain-token');
+
+    expect(notices, hasLength(1));
+    expect(notices.single, isA<AccountNotice>());
+    expect(notices.single.title, '维护通知');
+    expect(notices.single.content, '今晚维护\n请稍后重试');
+    expect(notices.single.content, isNot(contains('script')));
   });
 }
 
