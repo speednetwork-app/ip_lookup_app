@@ -4,9 +4,9 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../providers/history_provider.dart';
 import 'account_screen.dart';
+import 'dashboard_screen.dart';
 import 'history_screen.dart';
 import 'home_screen.dart';
-import 'lookup_screen.dart';
 
 /// 底部导航外壳。用 IndexedStack 而不是每次重建页面，
 /// 这样切走再切回来时输入框内容和滚动位置都还在。
@@ -34,11 +34,15 @@ class _HomeShellState extends State<HomeShell> {
     return Scaffold(
       body: IndexedStack(
         index: _index,
-        children: const [
-          HomeScreen(),
-          LookupScreen(),
-          HistoryScreen(),
-          AccountScreen(),
+        children: [
+          DashboardScreen(
+            onOpenIpTools: () => setState(() => _index = 1),
+            onOpenHistory: () => setState(() => _index = 2),
+            onOpenAccount: () => setState(() => _index = 3),
+          ),
+          const HomeScreen(),
+          const HistoryScreen(),
+          const AccountScreen(),
         ],
       ),
       bottomNavigationBar: NavigationBar(
@@ -46,14 +50,14 @@ class _HomeShellState extends State<HomeShell> {
         onDestinationSelected: (i) => setState(() => _index = i),
         destinations: const [
           NavigationDestination(
-            icon: Icon(Icons.my_location_outlined),
-            selectedIcon: Icon(Icons.my_location),
-            label: '我的 IP',
+            icon: Icon(Icons.home_outlined),
+            selectedIcon: Icon(Icons.home),
+            label: '首页',
           ),
           NavigationDestination(
-            icon: Icon(Icons.search_outlined),
-            selectedIcon: Icon(Icons.search),
-            label: '查询',
+            icon: Icon(Icons.public_outlined),
+            selectedIcon: Icon(Icons.public),
+            label: 'IP 检测',
           ),
           NavigationDestination(
             icon: Icon(Icons.history_outlined),

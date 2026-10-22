@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../providers/ip_provider.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/ip_card.dart';
+import 'lookup_screen.dart';
 import 'privacy_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -13,8 +14,15 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('我的 IP'),
+        title: const Text('IP 检测'),
         actions: [
+          IconButton(
+            tooltip: '查询指定 IP',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const LookupScreen()),
+            ),
+            icon: const Icon(Icons.search),
+          ),
           TextButton.icon(
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute<void>(

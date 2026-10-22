@@ -15,6 +15,12 @@ void main() {
     await tester.pumpWidget(_testApp());
     await tester.pumpAndSettle();
 
+    expect(find.text('皮卡云'), findsOneWidget);
+    expect(find.text('了解当前网络'), findsOneWidget);
+    expect(find.textContaining('VPN'), findsNothing);
+    await tester.tap(find.text('IP 检测').last);
+    await tester.pumpAndSettle();
+
     expect(find.text('查询当前公网 IP'), findsOneWidget);
     expect(find.text('查询我的公网 IP'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsNothing);
@@ -24,7 +30,9 @@ void main() {
     await tester.pumpWidget(_testApp());
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('查询').last);
+    await tester.tap(find.text('IP 检测').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('查询指定 IP'));
     await tester.pumpAndSettle();
 
     expect(find.text('开始查询'), findsOneWidget);
@@ -36,6 +44,8 @@ void main() {
     await tester.pumpWidget(_testApp());
     await tester.pumpAndSettle();
 
+    await tester.tap(find.text('IP 检测').last);
+    await tester.pumpAndSettle();
     expect(find.text('查询当前公网 IP'), findsOneWidget);
     expect(find.text('我的'), findsOneWidget);
 
@@ -59,6 +69,8 @@ void main() {
     await tester.pumpWidget(_testApp());
     await tester.pumpAndSettle();
 
+    await tester.tap(find.text('IP 检测').last);
+    await tester.pumpAndSettle();
     await tester.tap(find.text('隐私'));
     await tester.pumpAndSettle();
 
