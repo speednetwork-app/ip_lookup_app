@@ -242,7 +242,7 @@ class _ConnectionCard extends StatelessWidget {
           Text(
             selected == null
                 ? '请先从下方选择线路'
-                : '${_displayNodeName(selected.name)} · ${selected.protocol}',
+                : '${selected.name} · ${selected.protocol}',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(color: Colors.white.withValues(alpha: 0.8)),
@@ -435,7 +435,7 @@ class _NodeTile extends StatelessWidget {
                           children: [
                             Expanded(
                               child: Text(
-                                _displayNodeName(node.name),
+                                node.name,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
@@ -585,16 +585,6 @@ class _MetaChip extends StatelessWidget {
       ),
     );
   }
-}
-
-String _displayNodeName(String rawName) {
-  var name = rawName.trim();
-  name = name.replaceFirst(RegExp(r'^\d+\s*[.、:_-]?\s*'), '');
-  name = name.replaceFirst(
-    RegExp(r'\s*[-–—]?\s*\d+(?:\.\d+)?x\s*$', caseSensitive: false),
-    '',
-  );
-  return name.isEmpty ? rawName.trim() : name;
 }
 
 String _formatRate(double rate) {

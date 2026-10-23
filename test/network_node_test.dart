@@ -5,7 +5,7 @@ void main() {
   test('parses safe network node summary', () {
     final node = NetworkNode.fromJson({
       'id': 12,
-      'name': '香港线路',
+      'name': '10233.HK香港02-2x',
       'type': 'shadowsocks',
       'rate': '1.5',
       'available_status': 2,
@@ -15,6 +15,7 @@ void main() {
     });
 
     expect(node.id, '12');
+    expect(node.name, '10233.HK香港02-2x');
     expect(node.protocol, 'SHADOWSOCKS');
     expect(node.rate, 1.5);
     expect(node.isOnline, isTrue);
