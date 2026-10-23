@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 
 import '../models/network_node.dart';
 import '../providers/auth_provider.dart';
-import '../providers/vpn_provider.dart';
 
 class NodesScreen extends StatefulWidget {
   const NodesScreen({required this.onOpenAccount, super.key});
@@ -15,8 +14,6 @@ class NodesScreen extends StatefulWidget {
 }
 
 class _NodesScreenState extends State<NodesScreen> {
-  bool _privacyAccepted = false;
-
   @override
   void initState() {
     super.initState();
@@ -37,14 +34,14 @@ class _NodesScreenState extends State<NodesScreen> {
           children: [
             Text('线路'),
             Text(
-              '选择线路并建立安全连接',
+              '查看套餐当前可用线路',
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.normal),
             ),
           ],
         ),
       ),
-      body: Consumer2<AuthProvider, VpnProvider>(
-        builder: (context, auth, vpn, _) {
+      body: Consumer<AuthProvider>(
+        builder: (context, auth, _) {
           if (!auth.isSignedIn) {
             return _SignedOut(onOpenAccount: widget.onOpenAccount);
           }
@@ -54,17 +51,6 @@ class _NodesScreenState extends State<NodesScreen> {
           final onlineNodes = nodes.where((node) => node.isOnline).toList();
           final recommendedId =
               onlineNodes.isEmpty ? null : onlineNodes.first.id;
-          if (vpn.selectedNode == null && recommendedId != null) {
-            final recommended = nodes.firstWhere(
-              (node) => node.id == recommendedId,
-            );
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (mounted && vpn.selectedNode == null) {
-                vpn.selectNode(recommended);
-              }
-            });
-          }
-
           return RefreshIndicator.adaptive(
             onRefresh: auth.refreshNetworkNodes,
             child: ListView(
@@ -77,11 +63,6 @@ class _NodesScreenState extends State<NodesScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        _ConnectionCard(
-                          vpn: vpn,
-                          onPressed: () => _toggleConnection(vpn),
-                        ),
-                        const SizedBox(height: 20),
                         _NodesHeader(
                           onlineCount: onlineCount,
                           totalCount: nodes.length,
@@ -108,8 +89,6 @@ class _NodesScreenState extends State<NodesScreen> {
                               child: _NodeTile(
                                 node: node,
                                 recommended: node.id == recommendedId,
-                                selected: vpn.selectedNode?.id == node.id,
-                                onTap: () => vpn.selectNode(node),
                               ),
                             ),
                           ),
@@ -162,134 +141,6 @@ class _NodesScreenState extends State<NodesScreen> {
         return 3;
       default:
         return 4;
-    }
-  }
-
-  Future<void> _toggleConnection(VpnProvider vpn) async {
-    if (vpn.status == VpnStatus.connected) {
-      await vpn.disconnect();
-      return;
-    }
-    if (!_privacyAccepted) {
-      final accepted = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('启用安全连接'),
-          content: const Text(
-            '连接后，设备网络流量会通过你选择的皮卡云线路传输。'
-            '服务会处理建立连接所需的账号、线路和流量数据；不会出售或向第三方披露 VPN 使用数据。'
-            'iOS 随后会显示系统 VPN 配置授权。',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: const Text('同意并继续'),
-            ),
-          ],
-        ),
-      );
-      if (accepted != true) return;
-      _privacyAccepted = true;
-    }
-    await vpn.connect();
-  }
-}
-
-class _ConnectionCard extends StatelessWidget {
-  const _ConnectionCard({required this.vpn, required this.onPressed});
-
-  final VpnProvider vpn;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final connected = vpn.status == VpnStatus.connected;
-    final scheme = Theme.of(context).colorScheme;
-    final selected = vpn.selectedNode;
-    return Container(
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: connected
-              ? const [Color(0xFF087F6D), Color(0xFF23A987)]
-              : const [Color(0xFF123F66), Color(0xFF247DAA)],
-        ),
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Column(
-        children: [
-          Icon(
-            connected ? Icons.shield : Icons.shield_outlined,
-            size: 58,
-            color: Colors.white,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            _statusText(vpn.status),
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 24,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            selected == null
-                ? '请先从下方选择线路'
-                : '${selected.name} · ${selected.protocol}',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.8)),
-          ),
-          if (vpn.error.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Text(
-              vpn.error,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Color(0xFFFFD5D5)),
-            ),
-          ],
-          const SizedBox(height: 18),
-          FilledButton.icon(
-            onPressed: vpn.isBusy || selected == null ? null : onPressed,
-            icon: vpn.isBusy
-                ? const SizedBox.square(
-                    dimension: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Icon(connected
-                    ? Icons.stop_circle_outlined
-                    : Icons.power_settings_new),
-            label: Text(connected ? '断开连接' : '连接'),
-            style: FilledButton.styleFrom(
-              minimumSize: const Size(double.infinity, 50),
-              backgroundColor: Colors.white,
-              foregroundColor:
-                  connected ? const Color(0xFF087F6D) : scheme.primary,
-              disabledBackgroundColor: Colors.white.withValues(alpha: 0.55),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _statusText(VpnStatus status) {
-    switch (status) {
-      case VpnStatus.connecting:
-        return '正在连接';
-      case VpnStatus.connected:
-        return '已安全连接';
-      case VpnStatus.disconnecting:
-        return '正在断开';
-      case VpnStatus.disconnected:
-        return '未连接';
     }
   }
 }
@@ -378,14 +229,10 @@ class _NodeTile extends StatelessWidget {
   const _NodeTile({
     required this.node,
     required this.recommended,
-    required this.selected,
-    required this.onTap,
   });
 
   final NetworkNode node;
   final bool recommended;
-  final bool selected;
-  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -393,20 +240,20 @@ class _NodeTile extends StatelessWidget {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 180),
       decoration: BoxDecoration(
-        color: selected
-            ? scheme.primaryContainer.withValues(alpha: 0.52)
-            : scheme.surface,
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(17),
         border: Border.all(
-          color: selected ? scheme.primary : scheme.outlineVariant,
-          width: selected ? 1.5 : 1,
+          color: recommended
+              ? scheme.primary.withValues(alpha: 0.55)
+              : scheme.outlineVariant,
+          width: recommended ? 1.3 : 1,
         ),
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(17),
-          onTap: node.isOnline ? onTap : null,
+          onTap: null,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(14, 13, 12, 13),
             child: Row(
@@ -480,21 +327,6 @@ class _NodeTile extends StatelessWidget {
                       ],
                     ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 180),
-                  child: selected
-                      ? Icon(
-                          Icons.check_circle,
-                          key: const ValueKey('selected'),
-                          color: scheme.primary,
-                        )
-                      : Icon(
-                          Icons.chevron_right,
-                          key: const ValueKey('available'),
-                          color: scheme.onSurfaceVariant,
-                        ),
                 ),
               ],
             ),
@@ -670,7 +502,7 @@ class _DataNotice extends StatelessWidget {
             SizedBox(width: 10),
             Expanded(
               child: Text(
-                '首次连接前会说明网络数据用途，并由 iOS 显示系统 VPN 授权。线路凭证不会写入普通缓存。',
+                '线路名称、协议、在线状态和负载来自皮卡云服务，仅在登录后读取。',
               ),
             ),
           ],

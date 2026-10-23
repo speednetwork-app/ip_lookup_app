@@ -54,13 +54,6 @@ class PrivacyScreen extends StatelessWidget {
                 '系统公告仅在登录后读取。订阅地址和公告不会写入普通缓存。'
                 '退出登录会删除本机账号数据。',
           ),
-          const _InfoTile(
-            icon: Icons.shield_outlined,
-            title: '安全连接（主动启用）',
-            description: '仅在你选择线路并主动连接后，设备网络流量才会通过所选线路传输。'
-                '连接前会展示用途说明，并由 iOS 请求系统 VPN 配置授权。'
-                '服务会处理建立连接所必需的账号、线路、设备连接状态和流量用量数据。',
-          ),
           const SizedBox(height: 16),
           Text('我们不会做什么', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 8),
@@ -76,7 +69,6 @@ class PrivacyScreen extends StatelessWidget {
                   _CheckRow(text: '不申请 GPS 定位权限'),
                   _CheckRow(text: '不包含广告、分析 SDK 或用户追踪'),
                   _CheckRow(text: '不提供注册、付费或应用内购买'),
-                  _CheckRow(text: '不出售、使用或向第三方披露 VPN 使用数据'),
                   _CheckRow(text: '不出售或向第三方披露账号数据、登录凭证和订阅地址'),
                 ],
               ),
@@ -156,8 +148,7 @@ class _SummaryCard extends StatelessWidget {
             const SizedBox(height: 8),
             const Text(
               'IP 查询无需登录。仅当你主动登录已有账号时，App 才会处理邮箱、'
-              '登录凭证和账号概览；安全连接也只会在你明确选择线路并同意后启用。'
-              '不访问设备 GPS，不包含广告或用户追踪。',
+              '登录凭证和只读账号概览；不访问设备 GPS，不包含广告或用户追踪。',
               textAlign: TextAlign.center,
             ),
           ],
