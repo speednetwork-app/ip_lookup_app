@@ -154,6 +154,40 @@ void main() {
     expect(notices.single.content, '今晚维护\n请稍后重试');
     expect(notices.single.content, isNot(contains('script')));
   });
+
+  test('reads safe line summaries and excludes unsupported TUIC nodes',
+      () async {
+    late RequestOptions request;
+    final dio = _stubDio((options) {
+      request = options;
+      return {
+        'data': [
+          {
+            'id': 1,
+            'name': '香港线路',
+            'type': 'shadowsocks',
+            'rate': 1,
+            'available_status': 2,
+            'load_level': 'relaxed',
+          },
+          {
+            'id': 2,
+            'name': '暂不支持',
+            'type': 'tuic',
+            'available_status': 2,
+          },
+        ],
+      };
+    });
+    final service = AuthService(dio: dio);
+
+    final nodes = await service.getNetworkNodes('plain-token');
+
+    expect(request.path, '/user/server/fetch');
+    expect(request.headers['Authorization'], 'Bearer plain-token');
+    expect(nodes, hasLength(1));
+    expect(nodes.single.name, '香港线路');
+  });
 }
 
 Dio _stubDio(dynamic Function(RequestOptions options) responseBuilder) {

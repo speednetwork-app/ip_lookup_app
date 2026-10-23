@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import '../models/account_overview.dart';
 import '../models/account_notice.dart';
 import '../models/traffic_trend.dart';
+import '../models/network_node.dart';
 import '../services/account_cache.dart';
 import '../services/auth_service.dart';
 import '../services/session_storage.dart';
@@ -33,6 +34,9 @@ class AuthProvider with ChangeNotifier {
   final Map<TrafficRange, TrafficTrend> _trafficTrends = {};
   bool _trafficLoading = false;
   List<AccountNotice> _notices = const [];
+  List<NetworkNode> _networkNodes = const [];
+  bool _nodesLoading = false;
+  String _nodesError = '';
 
   AuthStatus get status => _status;
   String get email => _email;
@@ -45,6 +49,9 @@ class AuthProvider with ChangeNotifier {
   TrafficTrend? get trafficTrend => _trafficTrends[_selectedTrafficRange];
   bool get isTrafficLoading => _trafficLoading;
   List<AccountNotice> get notices => _notices;
+  List<NetworkNode> get networkNodes => _networkNodes;
+  bool get nodesLoading => _nodesLoading;
+  String get nodesError => _nodesError;
   TrafficTrend? trafficTrendFor(TrafficRange range) => _trafficTrends[range];
 
   Future<void> initialize() async {
@@ -174,6 +181,27 @@ class AuthProvider with ChangeNotifier {
     await _loadTraffic(range);
   }
 
+  Future<void> refreshNetworkNodes() async {
+    if (_token.isEmpty || _nodesLoading) return;
+    _nodesLoading = true;
+    _nodesError = '';
+    notifyListeners();
+    try {
+      _networkNodes = await _service.getNetworkNodes(_token);
+    } on AuthException catch (error) {
+      if (error.isUnauthorized) {
+        await _handleRefreshError(error);
+      } else {
+        _nodesError = error.message;
+      }
+    } catch (_) {
+      _nodesError = '获取线路列表失败，请稍后重试';
+    } finally {
+      _nodesLoading = false;
+      notifyListeners();
+    }
+  }
+
   Future<void> _loadTraffic(TrafficRange range) async {
     if (_token.isEmpty || _trafficLoading) return;
     _trafficLoading = true;
@@ -279,6 +307,9 @@ class AuthProvider with ChangeNotifier {
     _overview = null;
     _trafficTrends.clear();
     _notices = const [];
+    _networkNodes = const [];
+    _nodesLoading = false;
+    _nodesError = '';
     _selectedTrafficRange = TrafficRange.sevenDays;
   }
 }

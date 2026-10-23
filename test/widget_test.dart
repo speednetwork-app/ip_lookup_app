@@ -17,13 +17,25 @@ void main() {
 
     expect(find.text('皮卡云'), findsOneWidget);
     expect(find.text('了解当前网络'), findsOneWidget);
-    expect(find.textContaining('VPN'), findsNothing);
+    expect(find.text('线路'), findsWidgets);
     await tester.tap(find.text('IP 检测').last);
     await tester.pumpAndSettle();
 
     expect(find.text('查询当前公网 IP'), findsOneWidget);
     expect(find.text('查询我的公网 IP'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsNothing);
+  });
+
+  testWidgets('requires sign-in before showing account lines', (tester) async {
+    await tester.pumpWidget(_testApp());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('线路').last);
+    await tester.pumpAndSettle();
+
+    expect(find.text('登录后查看可用线路'), findsOneWidget);
+    expect(find.text('前往登录'), findsOneWidget);
+    expect(find.textContaining('IP 检测仍可免登录使用'), findsOneWidget);
   });
 
   testWidgets('shows one clear IP lookup flow', (tester) async {

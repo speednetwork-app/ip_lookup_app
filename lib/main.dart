@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'providers/auth_provider.dart';
 import 'providers/history_provider.dart';
 import 'providers/ip_provider.dart';
+import 'providers/vpn_provider.dart';
 import 'screens/home_shell.dart';
 
 void main() {
@@ -21,6 +22,7 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => authProvider ?? AuthProvider()),
         ChangeNotifierProvider(create: (_) => HistoryProvider()),
+        ChangeNotifierProvider(create: (_) => VpnProvider()),
         ChangeNotifierProxyProvider<HistoryProvider, IpProvider>(
           create: (context) => IpProvider(
             history: context.read<HistoryProvider>(),

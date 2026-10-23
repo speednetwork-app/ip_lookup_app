@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import '../models/account_overview.dart';
 import '../models/account_notice.dart';
 import '../models/traffic_trend.dart';
+import '../models/network_node.dart';
 
 class AuthException implements Exception {
   const AuthException(this.message, {this.isUnauthorized = false});
@@ -152,6 +153,37 @@ class AuthService {
       throw _friendlyDioError(error);
     } catch (_) {
       throw const AuthException('获取系统公告失败，请稍后重试');
+    }
+  }
+
+  Future<List<NetworkNode>> getNetworkNodes(String token) async {
+    try {
+      final response = await _dio.get<dynamic>(
+        '/user/server/fetch',
+        options: Options(headers: {'Authorization': _bearer(token)}),
+        queryParameters: {'t': DateTime.now().millisecondsSinceEpoch},
+      );
+      final body = response.data;
+      final rawList = body is List
+          ? body
+          : body is Map
+              ? body['data']
+              : null;
+      if (rawList is! List) {
+        throw const AuthException('获取线路列表失败');
+      }
+
+      return rawList
+          .whereType<Map>()
+          .map((item) => NetworkNode.fromJson(Map<String, dynamic>.from(item)))
+          .where((node) => node.id.isNotEmpty && node.protocol != 'TUIC')
+          .toList(growable: false);
+    } on AuthException {
+      rethrow;
+    } on DioException catch (error) {
+      throw _friendlyDioError(error);
+    } catch (_) {
+      throw const AuthException('获取线路列表失败，请稍后重试');
     }
   }
 

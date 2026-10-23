@@ -7,6 +7,7 @@ import 'account_screen.dart';
 import 'dashboard_screen.dart';
 import 'history_screen.dart';
 import 'home_screen.dart';
+import 'nodes_screen.dart';
 
 /// 底部导航外壳。用 IndexedStack 而不是每次重建页面，
 /// 这样切走再切回来时输入框内容和滚动位置都还在。
@@ -19,6 +20,16 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
+
+  void _selectTab(int index) {
+    setState(() => _index = index);
+    if (index == 1) {
+      final auth = context.read<AuthProvider>();
+      if (auth.isSignedIn && auth.networkNodes.isEmpty) {
+        Future.microtask(auth.refreshNetworkNodes);
+      }
+    }
+  }
 
   @override
   void initState() {
@@ -36,10 +47,12 @@ class _HomeShellState extends State<HomeShell> {
         index: _index,
         children: [
           DashboardScreen(
-            onOpenIpTools: () => setState(() => _index = 1),
-            onOpenHistory: () => setState(() => _index = 2),
-            onOpenAccount: () => setState(() => _index = 3),
+            onOpenNodes: () => _selectTab(1),
+            onOpenIpTools: () => _selectTab(2),
+            onOpenHistory: () => _selectTab(3),
+            onOpenAccount: () => _selectTab(4),
           ),
+          NodesScreen(onOpenAccount: () => _selectTab(4)),
           const HomeScreen(),
           const HistoryScreen(),
           const AccountScreen(),
@@ -47,12 +60,17 @@ class _HomeShellState extends State<HomeShell> {
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
+        onDestinationSelected: _selectTab,
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.home_outlined),
             selectedIcon: Icon(Icons.home),
             label: '首页',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.route_outlined),
+            selectedIcon: Icon(Icons.route),
+            label: '线路',
           ),
           NavigationDestination(
             icon: Icon(Icons.public_outlined),

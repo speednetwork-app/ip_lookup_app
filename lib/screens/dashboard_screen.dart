@@ -8,12 +8,14 @@ import '../providers/ip_provider.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({
+    required this.onOpenNodes,
     required this.onOpenIpTools,
     required this.onOpenHistory,
     required this.onOpenAccount,
     super.key,
   });
 
+  final VoidCallback onOpenNodes;
   final VoidCallback onOpenIpTools;
   final VoidCallback onOpenHistory;
   final VoidCallback onOpenAccount;
@@ -90,6 +92,7 @@ class DashboardScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 10),
                         _QuickActions(
+                          onOpenNodes: onOpenNodes,
                           onOpenIpTools: onOpenIpTools,
                           onOpenHistory: onOpenHistory,
                           onOpenAccount: onOpenAccount,
@@ -556,41 +559,42 @@ class _LatestNotice extends StatelessWidget {
 
 class _QuickActions extends StatelessWidget {
   const _QuickActions({
+    required this.onOpenNodes,
     required this.onOpenIpTools,
     required this.onOpenHistory,
     required this.onOpenAccount,
   });
 
+  final VoidCallback onOpenNodes;
   final VoidCallback onOpenIpTools;
   final VoidCallback onOpenHistory;
   final VoidCallback onOpenAccount;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
       children: [
-        Expanded(
-          child: _QuickAction(
-            icon: Icons.radar,
-            label: 'IP 检测',
-            onTap: onOpenIpTools,
-          ),
+        _QuickAction(
+          icon: Icons.route_outlined,
+          label: '线路',
+          onTap: onOpenNodes,
         ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _QuickAction(
-            icon: Icons.history_outlined,
-            label: '查询历史',
-            onTap: onOpenHistory,
-          ),
+        _QuickAction(
+          icon: Icons.radar,
+          label: 'IP 检测',
+          onTap: onOpenIpTools,
         ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _QuickAction(
-            icon: Icons.person_outline,
-            label: '账号中心',
-            onTap: onOpenAccount,
-          ),
+        _QuickAction(
+          icon: Icons.history_outlined,
+          label: '查询历史',
+          onTap: onOpenHistory,
+        ),
+        _QuickAction(
+          icon: Icons.person_outline,
+          label: '账号中心',
+          onTap: onOpenAccount,
         ),
       ],
     );
@@ -611,33 +615,37 @@ class _QuickAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
+      margin: EdgeInsets.zero,
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 18),
-          child: Column(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(13),
+        child: SizedBox(
+          width: 150,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 18),
+            child: Column(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: Icon(
+                    icon,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                 ),
-                child: Icon(
-                  icon,
-                  color: Theme.of(context).colorScheme.primary,
+                const SizedBox(height: 9),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
-              ),
-              const SizedBox(height: 9),
-              Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w600),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
