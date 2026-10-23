@@ -49,6 +49,22 @@ class _NodesScreenState extends State<NodesScreen> {
             return _SignedOut(onOpenAccount: widget.onOpenAccount);
           }
 
+          final nodes = [...auth.networkNodes]..sort(_compareNodes);
+          final onlineCount = nodes.where((node) => node.isOnline).length;
+          final onlineNodes = nodes.where((node) => node.isOnline).toList();
+          final recommendedId =
+              onlineNodes.isEmpty ? null : onlineNodes.first.id;
+          if (vpn.selectedNode == null && recommendedId != null) {
+            final recommended = nodes.firstWhere(
+              (node) => node.id == recommendedId,
+            );
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted && vpn.selectedNode == null) {
+                vpn.selectNode(recommended);
+              }
+            });
+          }
+
           return RefreshIndicator.adaptive(
             onRefresh: auth.refreshNetworkNodes,
             child: ListView(
@@ -66,30 +82,13 @@ class _NodesScreenState extends State<NodesScreen> {
                           onPressed: () => _toggleConnection(vpn),
                         ),
                         const SizedBox(height: 20),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                '可用线路',
-                                style: Theme.of(context).textTheme.titleLarge,
-                              ),
-                            ),
-                            if (auth.nodesLoading)
-                              const SizedBox.square(
-                                dimension: 20,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2),
-                              )
-                            else
-                              IconButton(
-                                tooltip: '刷新线路',
-                                onPressed: auth.refreshNetworkNodes,
-                                icon: const Icon(Icons.refresh),
-                              ),
-                          ],
+                        _NodesHeader(
+                          onlineCount: onlineCount,
+                          totalCount: nodes.length,
+                          loading: auth.nodesLoading,
+                          onRefresh: auth.refreshNetworkNodes,
                         ),
-                        const Text('仅显示账号套餐当前可访问的线路'),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 12),
                         if (auth.nodesError.isNotEmpty)
                           _MessageCard(
                             icon: Icons.error_outline,
@@ -103,11 +102,12 @@ class _NodesScreenState extends State<NodesScreen> {
                             text: '暂时没有可用线路，下拉即可重新加载。',
                           )
                         else
-                          ...auth.networkNodes.map(
+                          ...nodes.map(
                             (node) => Padding(
                               padding: const EdgeInsets.only(bottom: 10),
                               child: _NodeTile(
                                 node: node,
+                                recommended: node.id == recommendedId,
                                 selected: vpn.selectedNode?.id == node.id,
                                 onTap: () => vpn.selectNode(node),
                               ),
@@ -125,6 +125,44 @@ class _NodesScreenState extends State<NodesScreen> {
         },
       ),
     );
+  }
+
+  static int _compareNodes(NetworkNode left, NetworkNode right) {
+    final availability = _availabilityRank(left.availability)
+        .compareTo(_availabilityRank(right.availability));
+    if (availability != 0) return availability;
+    final load =
+        _loadRank(left.loadLevel).compareTo(_loadRank(right.loadLevel));
+    if (load != 0) return load;
+    final rate = left.rate.compareTo(right.rate);
+    if (rate != 0) return rate;
+    return left.name.compareTo(right.name);
+  }
+
+  static int _availabilityRank(NodeAvailability value) {
+    switch (value) {
+      case NodeAvailability.online:
+        return 0;
+      case NodeAvailability.heartbeat:
+        return 1;
+      case NodeAvailability.offline:
+        return 2;
+    }
+  }
+
+  static int _loadRank(String value) {
+    switch (value) {
+      case 'relaxed':
+        return 0;
+      case 'moderate':
+        return 1;
+      case 'unknown':
+        return 2;
+      case 'busy':
+        return 3;
+      default:
+        return 4;
+    }
   }
 
   Future<void> _toggleConnection(VpnProvider vpn) async {
@@ -204,7 +242,7 @@ class _ConnectionCard extends StatelessWidget {
           Text(
             selected == null
                 ? '请先从下方选择线路'
-                : '${selected.name} · ${selected.protocol}',
+                : '${_displayNodeName(selected.name)} · ${selected.protocol}',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(color: Colors.white.withValues(alpha: 0.8)),
@@ -256,52 +294,212 @@ class _ConnectionCard extends StatelessWidget {
   }
 }
 
+class _NodesHeader extends StatelessWidget {
+  const _NodesHeader({
+    required this.onlineCount,
+    required this.totalCount,
+    required this.loading,
+    required this.onRefresh,
+  });
+
+  final int onlineCount;
+  final int totalCount;
+  final bool loading;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    '选择线路',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  if (totalCount > 0) ...[
+                    const SizedBox(width: 9),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 9,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: scheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                      child: Text(
+                        '$onlineCount 条在线',
+                        style: TextStyle(
+                          color: scheme.onPrimaryContainer,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '已按在线状态和当前负载智能排序',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+              ),
+            ],
+          ),
+        ),
+        if (loading)
+          const Padding(
+            padding: EdgeInsets.all(12),
+            child: SizedBox.square(
+              dimension: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          )
+        else
+          IconButton.filledTonal(
+            tooltip: '刷新线路',
+            onPressed: onRefresh,
+            icon: const Icon(Icons.refresh),
+          ),
+      ],
+    );
+  }
+}
+
 class _NodeTile extends StatelessWidget {
   const _NodeTile({
     required this.node,
+    required this.recommended,
     required this.selected,
     required this.onTap,
   });
 
   final NetworkNode node;
+  final bool recommended;
   final bool selected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Card(
-      color: selected ? scheme.primaryContainer : null,
-      child: ListTile(
-        enabled: node.isOnline,
-        onTap: onTap,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
-        leading: Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            color: _statusColor(node.availability).withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(13),
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      decoration: BoxDecoration(
+        color: selected
+            ? scheme.primaryContainer.withValues(alpha: 0.52)
+            : scheme.surface,
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(
+          color: selected ? scheme.primary : scheme.outlineVariant,
+          width: selected ? 1.5 : 1,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(17),
+          onTap: node.isOnline ? onTap : null,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 13, 12, 13),
+            child: Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color:
+                        _statusColor(node.availability).withValues(alpha: 0.11),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    Icons.alt_route_rounded,
+                    color: _statusColor(node.availability),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Opacity(
+                    opacity: node.isOnline ? 1 : 0.58,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                _displayNodeName(node.name),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            if (recommended)
+                              _MetaChip(
+                                label: '推荐',
+                                foreground: scheme.primary,
+                                background: scheme.primaryContainer,
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 7),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 5,
+                          children: [
+                            _MetaChip(
+                              label: _availabilityText(node.availability),
+                              foreground: _statusColor(node.availability),
+                              background: _statusColor(node.availability)
+                                  .withValues(alpha: 0.1),
+                              showDot: true,
+                            ),
+                            _MetaChip(
+                              label: _loadText(node.loadLevel),
+                              foreground: scheme.onSurfaceVariant,
+                              background: scheme.surfaceContainerHighest,
+                            ),
+                            _MetaChip(
+                              label:
+                                  '${node.protocol} · ${_formatRate(node.rate)}x',
+                              foreground: scheme.onSurfaceVariant,
+                              background: scheme.surfaceContainerHighest,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 180),
+                  child: selected
+                      ? Icon(
+                          Icons.check_circle,
+                          key: const ValueKey('selected'),
+                          color: scheme.primary,
+                        )
+                      : Icon(
+                          Icons.chevron_right,
+                          key: const ValueKey('available'),
+                          color: scheme.onSurfaceVariant,
+                        ),
+                ),
+              ],
+            ),
           ),
-          child: Icon(Icons.route, color: _statusColor(node.availability)),
         ),
-        title: Text(
-          node.name,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Text(
-            '${node.protocol} · ${_availabilityText(node.availability)} · '
-            '${_loadText(node.loadLevel)}${node.loadEstimated ? '（估）' : ''} · '
-            '${node.rate.toStringAsFixed(2)}x',
-          ),
-        ),
-        trailing: selected
-            ? Icon(Icons.check_circle, color: scheme.primary)
-            : const Icon(Icons.chevron_right),
       ),
     );
   }
@@ -331,15 +529,78 @@ class _NodeTile extends StatelessWidget {
   String _loadText(String load) {
     switch (load) {
       case 'relaxed':
-        return '负载宽松';
+        return '流畅';
       case 'moderate':
-        return '负载较高';
+        return '较忙';
       case 'busy':
-        return '负载繁忙';
+        return '繁忙';
       default:
-        return '负载未知';
+        return '负载待测';
     }
   }
+}
+
+class _MetaChip extends StatelessWidget {
+  const _MetaChip({
+    required this.label,
+    required this.foreground,
+    required this.background,
+    this.showDot = false,
+  });
+
+  final String label;
+  final Color foreground;
+  final Color background;
+  final bool showDot;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (showDot) ...[
+            Container(
+              width: 6,
+              height: 6,
+              decoration:
+                  BoxDecoration(color: foreground, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 5),
+          ],
+          Text(
+            label,
+            style: TextStyle(
+              color: foreground,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _displayNodeName(String rawName) {
+  var name = rawName.trim();
+  name = name.replaceFirst(RegExp(r'^\d+\s*[.、:_-]?\s*'), '');
+  name = name.replaceFirst(
+    RegExp(r'\s*[-–—]?\s*\d+(?:\.\d+)?x\s*$', caseSensitive: false),
+    '',
+  );
+  return name.isEmpty ? rawName.trim() : name;
+}
+
+String _formatRate(double rate) {
+  return rate == rate.roundToDouble()
+      ? rate.toStringAsFixed(0)
+      : rate.toStringAsFixed(1);
 }
 
 class _SignedOut extends StatelessWidget {
