@@ -188,6 +188,83 @@ void main() {
     expect(nodes, hasLength(1));
     expect(nodes.single.name, '香港线路');
   });
+
+  test('requests and validates the mobile VPN configuration contract',
+      () async {
+    late RequestOptions request;
+    final dio = _stubDio((options) {
+      request = options;
+      return {
+        'status': 'success',
+        'data': {
+          'schema_version': 1,
+          'issued_at': 1792828800,
+          'refresh_after': 1792829100,
+          'protocol': 'vless',
+          'node': {'id': 522, 'name': 'US Route'},
+          'endpoint': {'address': 'node.example.com', 'port': 443},
+          'authentication': {
+            'id': '11111111-2222-4333-8444-555555555555',
+            'encryption': 'none',
+            'flow': 'xtls-rprx-vision',
+          },
+          'transport': {'type': 'raw'},
+          'security': {
+            'type': 'reality',
+            'server_name': 'www.example.com',
+            'public_key': 'example-public-key',
+            'short_id': '',
+            'fingerprint': 'chrome',
+            'spider_x': '/',
+          },
+        },
+      };
+    });
+    final service = AuthService(dio: dio);
+
+    final config = await service.getMobileVpnConfig(
+      'plain-token',
+      nodeId: 522,
+      appVersion: '1.5.0+10',
+    );
+
+    expect(request.path, '/user/mobile-vpn/config');
+    expect(request.method, 'POST');
+    expect(request.headers['Authorization'], 'Bearer plain-token');
+    expect(request.data, {
+      'node_id': 522,
+      'platform': 'ios',
+      'app_version': '1.5.0+10',
+    });
+    expect(config.schemaVersion, 1);
+    expect(config.protocol, 'vless');
+    expect(config.nodeId, 522);
+    expect(config.address, 'node.example.com');
+    expect(config.port, 443);
+    expect(config.securityType, 'reality');
+    expect(config.shortId, isEmpty);
+  });
+
+  test('rejects an unsupported mobile VPN configuration contract', () async {
+    final dio = _stubDio((_) {
+      return {
+        'status': 'success',
+        'data': {'schema_version': 2},
+      };
+    });
+    final service = AuthService(dio: dio);
+
+    expect(
+      service.getMobileVpnConfig('token', nodeId: 522),
+      throwsA(
+        isA<AuthException>().having(
+          (error) => error.message,
+          'message',
+          '服务器返回的 VPN 配置无效',
+        ),
+      ),
+    );
+  });
 }
 
 Dio _stubDio(dynamic Function(RequestOptions options) responseBuilder) {

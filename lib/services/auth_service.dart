@@ -4,6 +4,7 @@ import '../models/account_overview.dart';
 import '../models/account_notice.dart';
 import '../models/traffic_trend.dart';
 import '../models/network_node.dart';
+import '../models/mobile_vpn_config.dart';
 
 class AuthException implements Exception {
   const AuthException(this.message, {this.isUnauthorized = false});
@@ -184,6 +185,38 @@ class AuthService {
       throw _friendlyDioError(error);
     } catch (_) {
       throw const AuthException('获取线路列表失败，请稍后重试');
+    }
+  }
+
+  Future<MobileVpnConfig> getMobileVpnConfig(
+    String token, {
+    required int nodeId,
+    String? appVersion,
+  }) async {
+    try {
+      final response = await _dio.post<dynamic>(
+        '/user/mobile-vpn/config',
+        data: {
+          'node_id': nodeId,
+          'platform': 'ios',
+          if (appVersion != null && appVersion.trim().isNotEmpty)
+            'app_version': appVersion.trim(),
+        },
+        options: Options(headers: {'Authorization': _bearer(token)}),
+      );
+      final body = _asMap(response.data);
+      if (body['status'] != 'success') {
+        throw AuthException(_message(body, fallback: '获取 VPN 配置失败'));
+      }
+      return MobileVpnConfig.fromJson(_asMap(body['data']));
+    } on AuthException {
+      rethrow;
+    } on DioException catch (error) {
+      throw _friendlyDioError(error);
+    } on FormatException {
+      throw const AuthException('服务器返回的 VPN 配置无效');
+    } catch (_) {
+      throw const AuthException('获取 VPN 配置失败，请稍后重试');
     }
   }
 
