@@ -15,7 +15,9 @@ on:
 env:
   FLUTTER_VERSION: '3.47.5'
   BUNDLE_ID: com.speednetwork.iplookupapp
-  PROFILE_NAME: IP Lookup App Store
+  PROFILE_NAME: IP Lookup App Store 2026
+  TUNNEL_BUNDLE_ID: com.speednetwork.iplookupapp.PacketTunnel
+  TUNNEL_PROFILE_NAME: IP Lookup Packet Tunnel App Store 2026
 
 jobs:
   build:
@@ -80,23 +82,31 @@ jobs:
           echo "已导入的签名身份："
           security find-identity -v -p codesigning build.keychain
 
-      - name: Install provisioning profile
+      - name: Install provisioning profiles
         if: steps.mode.outputs.publish == 'true'
         env:
-          PROFILE: ${{ secrets.IOS_PROVISIONING_PROFILE }}
+          APP_PROFILE: ${{ secrets.IOS_PROVISIONING_PROFILE }}
+          TUNNEL_PROFILE: ${{ secrets.IOS_TUNNEL_PROVISIONING_PROFILE }}
         run: |
           set -euo pipefail
           # Xcode 16 起改读这个目录；旧路径同时写一份以兼容
           mkdir -p ~/Library/Developer/Xcode/UserData/Provisioning\ Profiles
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          echo "$PROFILE" | base64 --decode > /tmp/dist.mobileprovision
-          UUID=$(security cms -D -i /tmp/dist.mobileprovision \
-            | plutil -extract UUID raw -)
-          cp /tmp/dist.mobileprovision \
-            ~/Library/Developer/Xcode/UserData/Provisioning\ Profiles/"$UUID".mobileprovision
-          cp /tmp/dist.mobileprovision \
-            ~/Library/MobileDevice/Provisioning\ Profiles/"$UUID".mobileprovision
-          echo "描述文件 UUID: $UUID"
+          install_profile() {
+            local encoded_profile="$1"
+            local output_file="$2"
+            echo "$encoded_profile" | base64 --decode > "$output_file"
+            local uuid
+            uuid=$(security cms -D -i "$output_file" | plutil -extract UUID raw -)
+            cp "$output_file" \
+              ~/Library/Developer/Xcode/UserData/Provisioning\ Profiles/"$uuid".mobileprovision
+            cp "$output_file" \
+              ~/Library/MobileDevice/Provisioning\ Profiles/"$uuid".mobileprovision
+            echo "Installed provisioning profile UUID: $uuid"
+          }
+
+          install_profile "$APP_PROFILE" /tmp/app.mobileprovision
+          install_profile "$TUNNEL_PROFILE" /tmp/tunnel.mobileprovision
 
       - name: Build signed IPA
         if: steps.mode.outputs.publish == 'true'
@@ -119,6 +129,8 @@ jobs:
             <dict>
               <key>${{ env.BUNDLE_ID }}</key>
               <string>${{ env.PROFILE_NAME }}</string>
+              <key>${{ env.TUNNEL_BUNDLE_ID }}</key>
+              <string>${{ env.TUNNEL_PROFILE_NAME }}</string>
             </dict>
             <key>uploadSymbols</key><true/>
           </dict>
