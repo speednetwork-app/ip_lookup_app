@@ -89,6 +89,8 @@ class _NodesScreenState extends State<NodesScreen> {
                               child: _NodeTile(
                                 node: node,
                                 recommended: node.id == recommendedId,
+                                selected: node.id == auth.selectedNetworkNodeId,
+                                onSelected: () => auth.selectNetworkNode(node),
                               ),
                             ),
                           ),
@@ -229,10 +231,14 @@ class _NodeTile extends StatelessWidget {
   const _NodeTile({
     required this.node,
     required this.recommended,
+    required this.selected,
+    required this.onSelected,
   });
 
   final NetworkNode node;
   final bool recommended;
+  final bool selected;
+  final VoidCallback onSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -253,7 +259,7 @@ class _NodeTile extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(17),
-          onTap: null,
+          onTap: node.isOnline && node.protocol == 'VLESS' ? onSelected : null,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(14, 13, 12, 13),
             child: Row(
@@ -297,6 +303,14 @@ class _NodeTile extends StatelessWidget {
                                 foreground: scheme.primary,
                                 background: scheme.primaryContainer,
                               ),
+                            if (selected) ...[
+                              const SizedBox(width: 6),
+                              _MetaChip(
+                                label: '已选择',
+                                foreground: scheme.primary,
+                                background: scheme.primaryContainer,
+                              ),
+                            ],
                           ],
                         ),
                         const SizedBox(height: 7),

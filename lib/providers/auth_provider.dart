@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import '../models/account_overview.dart';
 import '../models/account_notice.dart';
@@ -7,6 +10,7 @@ import '../models/network_node.dart';
 import '../services/account_cache.dart';
 import '../services/auth_service.dart';
 import '../services/session_storage.dart';
+import '../services/vpn_service.dart';
 
 enum AuthStatus { initializing, signedOut, signingIn, signedIn }
 
@@ -15,13 +19,16 @@ class AuthProvider with ChangeNotifier {
     AuthService? service,
     SessionStorage? storage,
     AccountCache? cache,
+    VpnService? vpnService,
   })  : _service = service ?? AuthService(),
         _storage = storage ?? SecureSessionStorage(),
-        _cache = cache ?? SharedPreferencesAccountCache();
+        _cache = cache ?? SharedPreferencesAccountCache(),
+        _vpnService = vpnService ?? MethodChannelVpnService();
 
   final AuthService _service;
   final SessionStorage _storage;
   final AccountCache _cache;
+  final VpnService _vpnService;
 
   AuthStatus _status = AuthStatus.initializing;
   String _email = '';
@@ -37,6 +44,11 @@ class AuthProvider with ChangeNotifier {
   List<NetworkNode> _networkNodes = const [];
   bool _nodesLoading = false;
   String _nodesError = '';
+  String? _selectedNetworkNodeId;
+  VpnConnectionStatus _vpnStatus = VpnConnectionStatus.disconnected;
+  bool _vpnBusy = false;
+  String _vpnError = '';
+  Timer? _vpnStatusTimer;
 
   AuthStatus get status => _status;
   String get email => _email;
@@ -52,6 +64,11 @@ class AuthProvider with ChangeNotifier {
   List<NetworkNode> get networkNodes => _networkNodes;
   bool get nodesLoading => _nodesLoading;
   String get nodesError => _nodesError;
+  String? get selectedNetworkNodeId => _selectedNetworkNodeId;
+  VpnConnectionStatus get vpnStatus => _vpnStatus;
+  bool get vpnBusy => _vpnBusy;
+  String get vpnError => _vpnError;
+  bool get isVpnConnected => _vpnStatus == VpnConnectionStatus.connected;
   TrafficTrend? trafficTrendFor(TrafficRange range) => _trafficTrends[range];
 
   Future<void> initialize() async {
@@ -188,6 +205,18 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
     try {
       _networkNodes = await _service.getNetworkNodes(_token);
+      final selectedStillAvailable = _networkNodes.any(
+        (node) =>
+            node.id == _selectedNetworkNodeId &&
+            node.isOnline &&
+            node.protocol == 'VLESS',
+      );
+      if (!selectedStillAvailable) {
+        _selectedNetworkNodeId = _networkNodes
+            .where((node) => node.isOnline && node.protocol == 'VLESS')
+            .map((node) => node.id)
+            .firstOrNull;
+      }
     } on AuthException catch (error) {
       if (error.isUnauthorized) {
         await _handleRefreshError(error);
@@ -198,6 +227,84 @@ class AuthProvider with ChangeNotifier {
       _nodesError = '获取线路列表失败，请稍后重试';
     } finally {
       _nodesLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> initializeVpn() async {
+    await refreshVpnStatus();
+    if (_vpnStatus == VpnConnectionStatus.unsupported) return;
+    _vpnStatusTimer ??= Timer.periodic(
+      const Duration(seconds: 2),
+      (_) => refreshVpnStatus(notify: true),
+    );
+  }
+
+  Future<void> refreshVpnStatus({bool notify = true}) async {
+    try {
+      final next = await _vpnService.status();
+      if (_vpnStatus == next) return;
+      _vpnStatus = next;
+      if (notify) notifyListeners();
+    } catch (_) {
+      if (_vpnStatus != VpnConnectionStatus.invalid) {
+        _vpnStatus = VpnConnectionStatus.invalid;
+        if (notify) notifyListeners();
+      }
+    }
+  }
+
+  void selectNetworkNode(NetworkNode node) {
+    if (!node.isOnline || node.protocol != 'VLESS') return;
+    _selectedNetworkNodeId = node.id;
+    _vpnError = '';
+    notifyListeners();
+  }
+
+  Future<void> toggleVpn() async {
+    if (_vpnBusy) return;
+    _vpnBusy = true;
+    _vpnError = '';
+    notifyListeners();
+
+    try {
+      if (_vpnStatus == VpnConnectionStatus.connected ||
+          _vpnStatus == VpnConnectionStatus.connecting ||
+          _vpnStatus == VpnConnectionStatus.reasserting) {
+        await _vpnService.disconnect();
+      } else {
+        if (!isSignedIn) throw const AuthException('请先登录后再连接 VPN');
+        if (_networkNodes.isEmpty) await refreshNetworkNodes();
+        final node = _networkNodes.firstWhere(
+          (candidate) =>
+              candidate.id == _selectedNetworkNodeId &&
+              candidate.isOnline &&
+              candidate.protocol == 'VLESS',
+          orElse: () => _networkNodes.firstWhere(
+            (candidate) => candidate.isOnline && candidate.protocol == 'VLESS',
+            orElse: () => throw const AuthException('当前没有可连接的 VLESS 线路'),
+          ),
+        );
+        _selectedNetworkNodeId = node.id;
+        final nodeId = int.tryParse(node.id);
+        if (nodeId == null) throw const AuthException('线路编号无效');
+        final config = await _service.getMobileVpnConfig(
+          _token,
+          nodeId: nodeId,
+          appVersion: '1.6.0+11',
+        );
+        await _vpnService.connect(config);
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      await refreshVpnStatus(notify: false);
+    } on AuthException catch (error) {
+      _vpnError = error.message;
+    } on PlatformException catch (error) {
+      _vpnError = error.message ?? '无法启动系统 VPN';
+    } catch (_) {
+      _vpnError = 'VPN 操作失败，请稍后重试';
+    } finally {
+      _vpnBusy = false;
       notifyListeners();
     }
   }
@@ -283,6 +390,9 @@ class AuthProvider with ChangeNotifier {
 
   Future<void> logout() async {
     try {
+      await _vpnService.disconnect();
+    } catch (_) {}
+    try {
       await Future.wait([_storage.clear(), _cache.clear()]);
     } catch (_) {
       _error = '无法安全退出，请重试';
@@ -310,6 +420,16 @@ class AuthProvider with ChangeNotifier {
     _networkNodes = const [];
     _nodesLoading = false;
     _nodesError = '';
+    _selectedNetworkNodeId = null;
+    _vpnStatus = VpnConnectionStatus.disconnected;
+    _vpnBusy = false;
+    _vpnError = '';
     _selectedTrafficRange = TrafficRange.sevenDays;
+  }
+
+  @override
+  void dispose() {
+    _vpnStatusTimer?.cancel();
+    super.dispose();
   }
 }

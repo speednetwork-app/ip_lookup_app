@@ -38,6 +38,7 @@ class _HomeShellState extends State<HomeShell> {
     Future.microtask(history.load);
     final auth = context.read<AuthProvider>();
     Future.microtask(auth.initialize);
+    Future.microtask(auth.initializeVpn);
   }
 
   @override

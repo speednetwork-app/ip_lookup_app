@@ -5,6 +5,7 @@ import '../models/account_overview.dart';
 import '../models/ip_info.dart';
 import '../providers/auth_provider.dart';
 import '../providers/ip_provider.dart';
+import '../services/vpn_service.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({
@@ -67,6 +68,11 @@ class DashboardScreen extends StatelessWidget {
                           onDetect: ipProvider.loadMyIp,
                           onOpenDetails: onOpenIpTools,
                         ),
+                        const SizedBox(height: 14),
+                        _VpnControlCard(
+                          auth: auth,
+                          onOpenNodes: onOpenNodes,
+                        ),
                         const SizedBox(height: 24),
                         const _SectionTitle(
                           title: '账号概览',
@@ -109,6 +115,126 @@ class DashboardScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _VpnControlCard extends StatelessWidget {
+  const _VpnControlCard({required this.auth, required this.onOpenNodes});
+
+  final AuthProvider auth;
+  final VoidCallback onOpenNodes;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final enabled = auth.isSignedIn &&
+        auth.vpnStatus != VpnConnectionStatus.unsupported &&
+        auth.vpnStatus != VpnConnectionStatus.invalid;
+    final active = auth.vpnStatus == VpnConnectionStatus.connected ||
+        auth.vpnStatus == VpnConnectionStatus.connecting ||
+        auth.vpnStatus == VpnConnectionStatus.reasserting;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: active
+                        ? const Color(0xFF0A9F7F).withValues(alpha: 0.12)
+                        : scheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    active ? Icons.shield : Icons.shield_outlined,
+                    color: active
+                        ? const Color(0xFF0A9F7F)
+                        : scheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '安全连接',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        _vpnStatusText(auth),
+                        style: TextStyle(color: scheme.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
+                ),
+                if (auth.vpnBusy)
+                  const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: SizedBox.square(
+                      dimension: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                else
+                  Switch.adaptive(
+                    value: active,
+                    onChanged: enabled ? (_) => auth.toggleVpn() : null,
+                  ),
+              ],
+            ),
+            if (auth.isSignedIn) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: active ? null : onOpenNodes,
+                  icon: const Icon(Icons.route_outlined, size: 18),
+                  label: Text(
+                    auth.selectedNetworkNodeId == null
+                        ? '选择连接线路'
+                        : '线路 ${auth.selectedNetworkNodeId}',
+                  ),
+                ),
+              ),
+            ],
+            if (auth.vpnError.isNotEmpty)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  auth.vpnError,
+                  style: TextStyle(color: scheme.error, fontSize: 12),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _vpnStatusText(AuthProvider auth) {
+    if (!auth.isSignedIn) return '登录后可选择线路并连接';
+    switch (auth.vpnStatus) {
+      case VpnConnectionStatus.connected:
+        return '已连接，设备流量正在受到保护';
+      case VpnConnectionStatus.connecting:
+      case VpnConnectionStatus.reasserting:
+        return '正在建立安全连接';
+      case VpnConnectionStatus.disconnecting:
+        return '正在断开连接';
+      case VpnConnectionStatus.unsupported:
+        return '请在 iPhone 或 iPad 上使用';
+      case VpnConnectionStatus.invalid:
+        return '系统 VPN 配置暂不可用';
+      case VpnConnectionStatus.disconnected:
+        return '当前未连接';
+    }
   }
 }
 

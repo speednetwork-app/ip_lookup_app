@@ -92,6 +92,25 @@ class MobileVpnConfig {
   final String shortId;
   final String fingerprint;
   final String spiderX;
+
+  Map<String, Object> toPlatformMap() => {
+        'schema_version': schemaVersion,
+        'protocol': protocol,
+        'node_id': nodeId,
+        'node_name': nodeName,
+        'address': address,
+        'port': port,
+        'user_id': userId,
+        'encryption': encryption,
+        'flow': flow,
+        'transport': transportType,
+        'security': securityType,
+        'server_name': serverName,
+        'public_key': publicKey,
+        'short_id': shortId,
+        'fingerprint': fingerprint,
+        'spider_x': spiderX,
+      };
 }
 
 Map<String, dynamic> _requiredMap(Map<String, dynamic> json, String key) {
