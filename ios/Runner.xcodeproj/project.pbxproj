@@ -715,6 +715,10 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lresolv",
+				);
 				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.speednetwork.iplookupapp.PacketTunnel;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -745,6 +749,10 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lresolv",
+				);
 				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.speednetwork.iplookupapp.PacketTunnel;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -772,6 +780,10 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
+				);
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-lresolv",
 				);
 				MARKETING_VERSION = "$(FLUTTER_BUILD_NAME)";
 				PRODUCT_BUNDLE_IDENTIFIER = com.speednetwork.iplookupapp.PacketTunnel;
