@@ -220,11 +220,10 @@ jobs:
           flutter build ios --release --no-codesign 2>&1 | tee /tmp/ios-build.log
           status=${PIPESTATUS[0]}
           if [[ "$status" -ne 0 ]]; then
-            while IFS= read -r line; do
-              message=${line//'%'/'%25'}
-              message=${message//$'\r'/'%0D'}
-              message=${message//$'\n'/'%0A'}
-              echo "::error title=iOS build::$message"
-            done < <(grep -Ei 'error:|fatal error:|undefined symbols|BUILD FAILED|Failed to build iOS app' /tmp/ios-build.log | tail -40)
+            message=$(tail -80 /tmp/ios-build.log)
+            message=${message//'%'/'%25'}
+            message=${message//$'\r'/'%0D'}
+            message=${message//$'\n'/'%0A'}
+            echo "::error title=iOS build output::$message"
           fi
           exit "$status"
