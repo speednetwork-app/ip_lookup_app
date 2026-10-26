@@ -21,7 +21,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
       let configuration = try TunnelConfiguration(
         protocolConfiguration: protocolConfiguration
       )
-      setTunnelNetworkSettings(makeNetworkSettings(configuration)) { [weak self] error in
+      setTunnelNetworkSettings(makeNetworkSettings()) { [weak self] error in
         guard let self else {
           let failure = Self.error("VPN 扩展已终止")
           Self.record(stage: "VPN 扩展启动", error: failure)
@@ -89,11 +89,9 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
 
   override func wake() {}
 
-  private func makeNetworkSettings(
-    _ configuration: TunnelConfiguration
-  ) -> NEPacketTunnelNetworkSettings {
+  private func makeNetworkSettings() -> NEPacketTunnelNetworkSettings {
     let settings = NEPacketTunnelNetworkSettings(
-      tunnelRemoteAddress: configuration.address
+      tunnelRemoteAddress: "198.18.0.1"
     )
     settings.mtu = 1400
 
