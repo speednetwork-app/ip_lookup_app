@@ -243,7 +243,18 @@ class AuthProvider with ChangeNotifier {
   Future<void> refreshVpnStatus({bool notify = true}) async {
     try {
       final next = await _vpnService.status();
-      if (_vpnStatus == next) return;
+      if (next == VpnConnectionStatus.disconnected &&
+          (_vpnStatus == VpnConnectionStatus.connecting ||
+              _vpnStatus == VpnConnectionStatus.reasserting)) {
+        final nativeError = await _vpnService.lastError();
+        if (nativeError != null && nativeError.isNotEmpty) {
+          _vpnError = nativeError;
+        }
+      }
+      if (_vpnStatus == next) {
+        if (notify && _vpnError.isNotEmpty) notifyListeners();
+        return;
+      }
       _vpnStatus = next;
       if (notify) notifyListeners();
     } catch (_) {
@@ -291,8 +302,10 @@ class AuthProvider with ChangeNotifier {
         final config = await _service.getMobileVpnConfig(
           _token,
           nodeId: nodeId,
-          appVersion: '1.6.0+11',
+          appVersion: '1.6.0+12',
         );
+        _vpnStatus = VpnConnectionStatus.connecting;
+        notifyListeners();
         await _vpnService.connect(config);
       }
       await Future<void>.delayed(const Duration(milliseconds: 350));

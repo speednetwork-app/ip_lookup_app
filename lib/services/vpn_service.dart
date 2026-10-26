@@ -16,6 +16,8 @@ enum VpnConnectionStatus {
 abstract class VpnService {
   Future<VpnConnectionStatus> status();
 
+  Future<String?> lastError();
+
   Future<void> connect(MobileVpnConfig config);
 
   Future<void> disconnect();
@@ -39,6 +41,12 @@ class MethodChannelVpnService implements VpnService {
       (item) => item.name == value,
       orElse: () => VpnConnectionStatus.invalid,
     );
+  }
+
+  @override
+  Future<String?> lastError() async {
+    if (!_isSupported) return null;
+    return _channel.invokeMethod<String>('lastError');
   }
 
   @override

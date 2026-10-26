@@ -3,6 +3,9 @@ import LibXray
 import NetworkExtension
 
 final class PacketTunnelProvider: NEPacketTunnelProvider {
+  private static let appGroupIdentifier = "group.com.speednetwork.iplookupapp"
+  private static let lastErrorKey = "vpn.lastError"
+  private static let lastStageKey = "vpn.lastStage"
   private let worker = DispatchQueue(
     label: "com.speednetwork.iplookupapp.PacketTunnel.worker",
     qos: .userInitiated
@@ -13,37 +16,48 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     options: [String: NSObject]?,
     completionHandler: @escaping (Error?) -> Void
   ) {
+    Self.record(stage: "正在读取 VPN 配置")
     do {
       let configuration = try TunnelConfiguration(
         protocolConfiguration: protocolConfiguration
       )
       setTunnelNetworkSettings(makeNetworkSettings(configuration)) { [weak self] error in
         guard let self else {
-          completionHandler(Self.error("VPN 扩展已终止"))
+          let failure = Self.error("VPN 扩展已终止")
+          Self.record(stage: "VPN 扩展启动", error: failure)
+          completionHandler(failure)
           return
         }
         if let error {
+          Self.record(stage: "应用系统网络设置", error: error)
           completionHandler(error)
           return
         }
+        Self.record(stage: "正在取得系统 TUN 接口")
         guard let fileDescriptor = Self.findTunnelFileDescriptor() else {
-          completionHandler(Self.error("无法取得系统 VPN 网络接口"))
+          let failure = Self.error("无法取得系统 VPN 网络接口")
+          Self.record(stage: "取得系统 TUN 接口", error: failure)
+          completionHandler(failure)
           return
         }
         self.worker.async {
           do {
+            Self.record(stage: "正在启动 Xray 内核")
             let xrayJSON = try configuration.makeXrayJSON(
               tunnelFileDescriptor: fileDescriptor
             )
             try Self.invoke(method: "runXray", xrayJSON: xrayJSON)
             self.xrayRunning = true
+            Self.record(stage: "VPN 已连接")
             completionHandler(nil)
           } catch {
+            Self.record(stage: "启动 Xray 内核", error: error)
             completionHandler(error)
           }
         }
       }
     } catch {
+      Self.record(stage: "读取 VPN 配置", error: error)
       completionHandler(error)
     }
   }
@@ -151,6 +165,18 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
       code: 1,
       userInfo: [NSLocalizedDescriptionKey: message]
     )
+  }
+
+  private static func record(stage: String, error: Error? = nil) {
+    guard let defaults = UserDefaults(suiteName: appGroupIdentifier) else {
+      return
+    }
+    defaults.set(stage, forKey: lastStageKey)
+    if let error {
+      defaults.set("\(stage)：\(error.localizedDescription)", forKey: lastErrorKey)
+    } else if stage == "正在读取 VPN 配置" || stage == "VPN 已连接" {
+      defaults.removeObject(forKey: lastErrorKey)
+    }
   }
 }
 

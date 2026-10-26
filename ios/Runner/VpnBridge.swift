@@ -4,6 +4,8 @@ import NetworkExtension
 final class VpnBridge: NSObject {
   private static let channelName = "com.speednetwork.iplookupapp/vpn"
   private static let providerBundleIdentifier = "com.speednetwork.iplookupapp.PacketTunnel"
+  private static let appGroupIdentifier = "group.com.speednetwork.iplookupapp"
+  private static let lastErrorKey = "vpn.lastError"
   private let channel: FlutterMethodChannel
 
   init(messenger: FlutterBinaryMessenger) {
@@ -23,6 +25,11 @@ final class VpnBridge: NSObject {
           result(Self.flutterError(error))
         }
       }
+    case "lastError":
+      result(
+        UserDefaults(suiteName: Self.appGroupIdentifier)?
+          .string(forKey: Self.lastErrorKey)
+      )
     case "connect":
       guard let configuration = call.arguments as? [String: Any] else {
         result(FlutterError(code: "invalid_configuration", message: "VPN 配置格式无效", details: nil))
@@ -45,6 +52,8 @@ final class VpnBridge: NSObject {
   }
 
   private func connect(configuration: [String: Any], result: @escaping FlutterResult) {
+    UserDefaults(suiteName: Self.appGroupIdentifier)?
+      .removeObject(forKey: Self.lastErrorKey)
     loadManager { response in
       switch response {
       case .failure(let error):
