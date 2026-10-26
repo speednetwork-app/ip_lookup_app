@@ -63,6 +63,13 @@ jobs:
           test -f ios/Frameworks/LibXray.xcframework/Info.plist
           plutil -lint ios/Frameworks/LibXray.xcframework/Info.plist
 
+      - name: Save LibXray Apple framework
+        if: steps.libxray-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ios/Frameworks/LibXray.xcframework
+          key: libxray-apple-${{ runner.os }}-${{ env.LIBXRAY_COMMIT }}-${{ hashFiles('tool/build_libxray_apple.sh') }}
+
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -207,4 +214,17 @@ jobs:
       # 日常 push：只确认代码能过编译，产物不签名所以无法上传
       - name: Build unsigned (verification only)
         if: steps.mode.outputs.signed == 'false'
-        run: flutter build ios --release --no-codesign
+        run: |
+          set +e
+          set -o pipefail
+          flutter build ios --release --no-codesign 2>&1 | tee /tmp/ios-build.log
+          status=${PIPESTATUS[0]}
+          if [[ "$status" -ne 0 ]]; then
+            while IFS= read -r line; do
+              message=${line//'%'/'%25'}
+              message=${message//$'\r'/'%0D'}
+              message=${message//$'\n'/'%0A'}
+              echo "::error title=iOS build::$message"
+            done < <(grep -Ei 'error:|fatal error:|undefined symbols|BUILD FAILED|Failed to build iOS app' /tmp/ios-build.log | tail -40)
+          fi
+          exit "$status"
