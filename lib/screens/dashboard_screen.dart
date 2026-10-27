@@ -9,6 +9,8 @@ import '../providers/auth_provider.dart';
 import '../providers/ip_provider.dart';
 import '../services/vpn_service.dart';
 import '../theme/pikayun_theme.dart';
+import '../widgets/app_backdrop.dart';
+import '../widgets/app_page_title.dart';
 import '../widgets/app_section_header.dart';
 import '../widgets/app_surface.dart';
 import '../widgets/status_badge.dart';
@@ -33,18 +35,11 @@ class DashboardScreen extends StatelessWidget {
       appBar: AppBar(
         toolbarHeight: 68,
         titleSpacing: 20,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('皮卡云', style: Theme.of(context).textTheme.titleLarge),
-            Text(
-              '网络与账户',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-            ),
-          ],
+        title: const AppPageTitle(
+          title: '皮卡云',
+          subtitle: '网络与账户',
+          icon: Icons.location_on_rounded,
+          brand: true,
         ),
         actions: [
           IconButton(
@@ -55,8 +50,9 @@ class DashboardScreen extends StatelessWidget {
           const SizedBox(width: 8),
         ],
       ),
-      body: Consumer2<AuthProvider, IpProvider>(
-        builder: (context, auth, ipProvider, _) => RefreshIndicator.adaptive(
+      body: AppBackdrop(
+        child: Consumer2<AuthProvider, IpProvider>(
+          builder: (context, auth, ipProvider, _) => RefreshIndicator.adaptive(
           onRefresh: () async {
             if (auth.isSignedIn) await auth.refreshAccountData();
             if (ipProvider.myIp != null) await ipProvider.loadMyIp();
@@ -82,6 +78,7 @@ class DashboardScreen extends StatelessWidget {
                       _VpnControl(auth: auth, onOpenNodes: onOpenNodes),
                       const SizedBox(height: 28),
                       const AppSectionHeader(
+                        icon: Icons.cloud_outlined,
                         title: '账号概览',
                         subtitle: '套餐与流量均来自当前账号',
                       ),
@@ -100,6 +97,7 @@ class DashboardScreen extends StatelessWidget {
                       ],
                       const SizedBox(height: 28),
                       const AppSectionHeader(
+                        icon: Icons.apps_rounded,
                         title: '常用功能',
                         subtitle: '快速进入主要工具',
                       ),
@@ -117,6 +115,7 @@ class DashboardScreen extends StatelessWidget {
                 ),
               ),
             ],
+          ),
           ),
         ),
       ),

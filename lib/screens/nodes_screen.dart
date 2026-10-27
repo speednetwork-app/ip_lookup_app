@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 
 import '../models/network_node.dart';
 import '../providers/auth_provider.dart';
+import '../widgets/app_backdrop.dart';
+import '../widgets/app_page_title.dart';
 
 class NodesScreen extends StatefulWidget {
   const NodesScreen({required this.onOpenAccount, super.key});
@@ -29,19 +31,15 @@ class _NodesScreenState extends State<NodesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('线路'),
-            Text(
-              '查看套餐当前可用线路',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.normal),
-            ),
-          ],
+        title: const AppPageTitle(
+          title: '线路',
+          subtitle: '查看套餐当前可用线路',
+          icon: Icons.alt_route_rounded,
         ),
       ),
-      body: Consumer<AuthProvider>(
-        builder: (context, auth, _) {
+      body: AppBackdrop(
+        child: Consumer<AuthProvider>(
+          builder: (context, auth, _) {
           if (!auth.isSignedIn) {
             return _SignedOut(onOpenAccount: widget.onOpenAccount);
           }
@@ -103,7 +101,8 @@ class _NodesScreenState extends State<NodesScreen> {
               ],
             ),
           );
-        },
+          },
+        ),
       ),
     );
   }

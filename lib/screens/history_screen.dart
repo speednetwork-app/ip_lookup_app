@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 
 import '../models/history_entry.dart';
 import '../providers/history_provider.dart';
+import '../widgets/app_backdrop.dart';
+import '../widgets/app_page_title.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/ip_card.dart';
 
@@ -13,7 +15,11 @@ class HistoryScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('查询历史'),
+        title: const AppPageTitle(
+          title: '查询历史',
+          subtitle: '仅保存在当前设备',
+          icon: Icons.history_rounded,
+        ),
         actions: [
           Consumer<HistoryProvider>(
             builder: (context, history, _) => IconButton(
@@ -26,8 +32,9 @@ class HistoryScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: Consumer<HistoryProvider>(
-        builder: (context, history, _) {
+      body: AppBackdrop(
+        child: Consumer<HistoryProvider>(
+          builder: (context, history, _) {
           if (!history.isLoaded) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -63,7 +70,8 @@ class HistoryScreen extends StatelessWidget {
               );
             },
           );
-        },
+          },
+        ),
       ),
     );
   }

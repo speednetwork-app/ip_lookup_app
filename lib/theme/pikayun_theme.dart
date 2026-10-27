@@ -3,6 +3,10 @@ import 'package:flutter/material.dart';
 @immutable
 class PikayunColors extends ThemeExtension<PikayunColors> {
   const PikayunColors({
+    required this.canvasStart,
+    required this.canvasEnd,
+    required this.signalGlow,
+    required this.signalGrid,
     required this.brandSurface,
     required this.onBrandSurface,
     required this.onBrandSurfaceMuted,
@@ -13,6 +17,10 @@ class PikayunColors extends ThemeExtension<PikayunColors> {
     required this.separator,
   });
 
+  final Color canvasStart;
+  final Color canvasEnd;
+  final Color signalGlow;
+  final Color signalGrid;
   final Color brandSurface;
   final Color onBrandSurface;
   final Color onBrandSurfaceMuted;
@@ -23,6 +31,10 @@ class PikayunColors extends ThemeExtension<PikayunColors> {
   final Color separator;
 
   static const light = PikayunColors(
+    canvasStart: Color(0xFFF0F6FC),
+    canvasEnd: Color(0xFFF7F9FC),
+    signalGlow: Color(0xFF3A9BD8),
+    signalGrid: Color(0xFF285F96),
     brandSurface: Color(0xFF164D73),
     onBrandSurface: Color(0xFFFFFFFF),
     onBrandSurfaceMuted: Color(0xFFC9DCE8),
@@ -34,6 +46,10 @@ class PikayunColors extends ThemeExtension<PikayunColors> {
   );
 
   static const dark = PikayunColors(
+    canvasStart: Color(0xFF0B1623),
+    canvasEnd: Color(0xFF101925),
+    signalGlow: Color(0xFF3B9DD6),
+    signalGrid: Color(0xFF79B4F2),
     brandSurface: Color(0xFF123B57),
     onBrandSurface: Color(0xFFF7FBFF),
     onBrandSurfaceMuted: Color(0xFFBBD1DE),
@@ -46,6 +62,10 @@ class PikayunColors extends ThemeExtension<PikayunColors> {
 
   @override
   PikayunColors copyWith({
+    Color? canvasStart,
+    Color? canvasEnd,
+    Color? signalGlow,
+    Color? signalGrid,
     Color? brandSurface,
     Color? onBrandSurface,
     Color? onBrandSurfaceMuted,
@@ -56,6 +76,10 @@ class PikayunColors extends ThemeExtension<PikayunColors> {
     Color? separator,
   }) {
     return PikayunColors(
+      canvasStart: canvasStart ?? this.canvasStart,
+      canvasEnd: canvasEnd ?? this.canvasEnd,
+      signalGlow: signalGlow ?? this.signalGlow,
+      signalGrid: signalGrid ?? this.signalGrid,
       brandSurface: brandSurface ?? this.brandSurface,
       onBrandSurface: onBrandSurface ?? this.onBrandSurface,
       onBrandSurfaceMuted: onBrandSurfaceMuted ?? this.onBrandSurfaceMuted,
@@ -71,6 +95,10 @@ class PikayunColors extends ThemeExtension<PikayunColors> {
   PikayunColors lerp(PikayunColors? other, double t) {
     if (other == null) return this;
     return PikayunColors(
+      canvasStart: Color.lerp(canvasStart, other.canvasStart, t)!,
+      canvasEnd: Color.lerp(canvasEnd, other.canvasEnd, t)!,
+      signalGlow: Color.lerp(signalGlow, other.signalGlow, t)!,
+      signalGrid: Color.lerp(signalGrid, other.signalGrid, t)!,
       brandSurface: Color.lerp(brandSurface, other.brandSurface, t)!,
       onBrandSurface: Color.lerp(onBrandSurface, other.onBrandSurface, t)!,
       onBrandSurfaceMuted:
@@ -103,7 +131,7 @@ class PikayunTheme {
     final scheme = ColorScheme.fromSeed(
       seedColor: const Color(0xFF246B9B),
       brightness: brightness,
-      surface: isDark ? const Color(0xFF111417) : const Color(0xFFF7F8FA),
+      surface: isDark ? const Color(0xFF101925) : const Color(0xFFF0F6FC),
     );
     final base = ThemeData(
       useMaterial3: true,
@@ -126,10 +154,12 @@ class PikayunTheme {
 
     return base.copyWith(
       textTheme: textTheme,
-      scaffoldBackgroundColor: scheme.surface,
+      scaffoldBackgroundColor:
+          isDark ? PikayunColors.dark.canvasEnd : PikayunColors.light.canvasEnd,
       extensions: [isDark ? PikayunColors.dark : PikayunColors.light],
       appBarTheme: AppBarTheme(
-        backgroundColor: scheme.surface,
+        backgroundColor:
+            isDark ? PikayunColors.dark.canvasStart : PikayunColors.light.canvasStart,
         foregroundColor: scheme.onSurface,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
@@ -138,7 +168,7 @@ class PikayunTheme {
       cardTheme: CardThemeData(
         elevation: 0,
         margin: EdgeInsets.zero,
-        color: scheme.surfaceContainerLowest,
+        color: isDark ? const Color(0xFF182434) : const Color(0xFFFCFEFF),
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           side: BorderSide(color: scheme.outlineVariant.withValues(alpha: .7)),
@@ -167,7 +197,7 @@ class PikayunTheme {
         ),
       ),
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: scheme.surfaceContainer,
+        backgroundColor: isDark ? const Color(0xFF162231) : const Color(0xFFF8FBFE),
         indicatorColor: scheme.primaryContainer,
         elevation: 0,
         height: 68,

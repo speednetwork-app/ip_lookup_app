@@ -3,12 +3,14 @@ import 'package:flutter/material.dart';
 class AppSectionHeader extends StatelessWidget {
   const AppSectionHeader({
     required this.title,
+    this.icon,
     this.subtitle,
     this.action,
     super.key,
   });
 
   final String title;
+  final IconData? icon;
   final String? subtitle;
   final Widget? action;
 
@@ -22,7 +24,15 @@ class AppSectionHeader extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: Theme.of(context).textTheme.titleMedium),
+              Row(
+                children: [
+                  if (icon != null) ...[
+                    Icon(icon, size: 19, color: scheme.primary),
+                    const SizedBox(width: 8),
+                  ],
+                  Text(title, style: Theme.of(context).textTheme.titleMedium),
+                ],
+              ),
               if (subtitle != null) ...[
                 const SizedBox(height: 2),
                 Text(

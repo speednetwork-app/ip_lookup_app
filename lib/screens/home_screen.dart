@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/ip_provider.dart';
+import '../widgets/app_backdrop.dart';
+import '../widgets/app_page_title.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/ip_card.dart';
 import 'lookup_screen.dart';
@@ -14,7 +16,11 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('IP 检测'),
+        title: const AppPageTitle(
+          title: 'IP 检测',
+          subtitle: '公网地址与近似位置',
+          icon: Icons.radar_rounded,
+        ),
         actions: [
           IconButton(
             tooltip: '查询指定 IP',
@@ -35,8 +41,9 @@ class HomeScreen extends StatelessWidget {
           const SizedBox(width: 8),
         ],
       ),
-      body: Consumer<IpProvider>(
-        builder: (context, provider, _) {
+      body: AppBackdrop(
+        child: Consumer<IpProvider>(
+          builder: (context, provider, _) {
           if (provider.isMyIpLoading) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -84,7 +91,8 @@ class HomeScreen extends StatelessWidget {
               ],
             ),
           );
-        },
+          },
+        ),
       ),
     );
   }

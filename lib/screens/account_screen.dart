@@ -7,6 +7,8 @@ import '../models/traffic_trend.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/account_insights_card.dart';
 import '../widgets/account_notices_card.dart';
+import '../widgets/app_backdrop.dart';
+import '../widgets/app_page_title.dart';
 import '../widgets/traffic_trend_card.dart';
 import 'privacy_screen.dart';
 
@@ -24,7 +26,11 @@ class _AccountScreenState extends State<AccountScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('我的'),
+        title: const AppPageTitle(
+          title: '我的',
+          subtitle: '套餐、流量与账户',
+          icon: Icons.person_outline_rounded,
+        ),
         actions: [
           IconButton(
             tooltip: '隐私与数据',
@@ -36,8 +42,9 @@ class _AccountScreenState extends State<AccountScreen> {
           const SizedBox(width: 4),
         ],
       ),
-      body: Consumer<AuthProvider>(
-        builder: (context, auth, _) {
+      body: AppBackdrop(
+        child: Consumer<AuthProvider>(
+          builder: (context, auth, _) {
           switch (auth.status) {
             case AuthStatus.initializing:
               return const Center(child: CircularProgressIndicator());
@@ -47,7 +54,8 @@ class _AccountScreenState extends State<AccountScreen> {
             case AuthStatus.signedIn:
               return _buildAccount(context, auth);
           }
-        },
+          },
+        ),
       ),
     );
   }
