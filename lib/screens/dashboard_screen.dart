@@ -13,7 +13,6 @@ import '../services/vpn_service.dart';
 import '../theme/pikayun_theme.dart';
 import '../widgets/app_backdrop.dart';
 import '../widgets/app_icon_tile.dart';
-import '../widgets/app_section_header.dart';
 import '../widgets/app_surface.dart';
 import '../widgets/status_badge.dart';
 
@@ -21,14 +20,12 @@ class DashboardScreen extends StatelessWidget {
   const DashboardScreen({
     required this.onOpenNodes,
     required this.onOpenIpTools,
-    required this.onOpenHistory,
     required this.onOpenAccount,
     super.key,
   });
 
   final VoidCallback onOpenNodes;
   final VoidCallback onOpenIpTools;
-  final VoidCallback onOpenHistory;
   final VoidCallback onOpenAccount;
 
   @override
@@ -77,45 +74,17 @@ class DashboardScreen extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                      _NetworkOverview(
-                        info: ipProvider.myIp,
-                        loading: ipProvider.isMyIpLoading,
-                        error: ipProvider.myIpError,
-                        onDetect: ipProvider.loadMyIp,
-                        onOpenDetails: onOpenIpTools,
-                      ),
-                      const SizedBox(height: 12),
-                      _VpnControl(auth: auth, onOpenNodes: onOpenNodes),
-                      const SizedBox(height: 22),
-                      const AppSectionHeader(
-                        title: '账号概览',
-                      ),
-                      const SizedBox(height: 10),
-                      _AccountSummary(
-                        auth: auth,
-                        onOpenAccount: onOpenAccount,
-                      ),
-                      if (auth.notices.isNotEmpty) ...[
-                        const SizedBox(height: 10),
-                        _LatestNotice(
-                          title: auth.notices.first.title,
-                          content: auth.notices.first.content,
-                          onOpenAccount: onOpenAccount,
+                        _NetworkOverview(
+                          info: ipProvider.myIp,
+                          loading: ipProvider.isMyIpLoading,
+                          error: ipProvider.myIpError,
+                          onDetect: ipProvider.loadMyIp,
+                          onOpenDetails: onOpenIpTools,
                         ),
-                      ],
-                      const SizedBox(height: 22),
-                      const AppSectionHeader(
-                        title: '常用功能',
-                      ),
-                      const SizedBox(height: 10),
-                      _QuickActions(
-                        onOpenNodes: onOpenNodes,
-                        onOpenIpTools: onOpenIpTools,
-                        onOpenHistory: onOpenHistory,
-                        onOpenAccount: onOpenAccount,
-                      ),
-                      const SizedBox(height: 16),
-                      const _PrivacyNotice(),
+                        const SizedBox(height: 12),
+                        _VpnControl(auth: auth, onOpenNodes: onOpenNodes),
+                        const SizedBox(height: 16),
+                        const _PrivacyNotice(),
                       ],
                     ),
                   ),
@@ -242,18 +211,22 @@ class _NetworkOverviewState extends State<_NetworkOverview> {
                     if (info == null)
                       Text(
                         widget.loading ? '正在检测…' : '尚未检测',
-                        style:
-                            Theme.of(context).textTheme.headlineMedium?.copyWith(
-                                  color: colors.onBrandSurface,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: -.5,
-                                ),
+                        style: Theme.of(context)
+                            .textTheme
+                            .headlineMedium
+                            ?.copyWith(
+                              color: colors.onBrandSurface,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -.5,
+                            ),
                       )
                     else
                       SelectableText(
                         info.ip,
-                        style:
-                            Theme.of(context).textTheme.headlineMedium?.copyWith(
+                        style: Theme.of(context)
+                            .textTheme
+                            .headlineMedium
+                            ?.copyWith(
                           color: colors.onBrandSurface,
                           fontWeight: FontWeight.w700,
                           letterSpacing: -.4,
@@ -267,10 +240,11 @@ class _NetworkOverviewState extends State<_NetworkOverview> {
                         width: 210,
                         child: Text(
                           '主动检测后显示公网 IP、估计位置和网络运营商。',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: colors.onBrandSurfaceMuted,
-                                height: 1.35,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: colors.onBrandSurfaceMuted,
+                                    height: 1.35,
+                                  ),
                         ),
                       )
                     else ...[
@@ -776,6 +750,9 @@ class _VpnDisclosureItem extends StatelessWidget {
   }
 }
 
+// Kept temporarily as a migration reference while the account presentation is
+// consolidated in AccountScreen; it is no longer rendered on the dashboard.
+// ignore: unused_element
 class _AccountSummary extends StatelessWidget {
   const _AccountSummary({required this.auth, required this.onOpenAccount});
   final AuthProvider auth;
@@ -880,17 +857,17 @@ class _AccountSummary extends StatelessWidget {
                 child: Text(
                   '流量使用 ${traffic.usagePercent.toStringAsFixed(1)}%',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                        fontFeatures: const [FontFeature.tabularFigures()],
-                      ),
+                    color: scheme.onSurfaceVariant,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
                 ),
               ),
               Text(
                 '剩余 ${_formatBytes(traffic.remainingBytes)}',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: scheme.onSurfaceVariant,
-                      fontFeatures: const [FontFeature.tabularFigures()],
-                    ),
+                  color: scheme.onSurfaceVariant,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
               ),
             ],
           ),
@@ -906,9 +883,9 @@ class _AccountSummary extends StatelessWidget {
             child: Text(
               '${_formatBytes(traffic.usedBytes)} / ${_formatBytes(traffic.totalBytes)}',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
+                color: scheme.onSurfaceVariant,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
             ),
           ),
         ],
@@ -917,6 +894,7 @@ class _AccountSummary extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _LatestNotice extends StatelessWidget {
   const _LatestNotice({
     required this.title,
@@ -968,6 +946,7 @@ class _LatestNotice extends StatelessWidget {
   }
 }
 
+// ignore: unused_element
 class _QuickActions extends StatelessWidget {
   const _QuickActions({
     required this.onOpenNodes,
