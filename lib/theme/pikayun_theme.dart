@@ -7,6 +7,9 @@ class PikayunColors extends ThemeExtension<PikayunColors> {
     required this.canvasEnd,
     required this.signalGlow,
     required this.signalGrid,
+    required this.heroStart,
+    required this.heroEnd,
+    required this.heroAccent,
     required this.brandSurface,
     required this.onBrandSurface,
     required this.onBrandSurfaceMuted,
@@ -21,6 +24,9 @@ class PikayunColors extends ThemeExtension<PikayunColors> {
   final Color canvasEnd;
   final Color signalGlow;
   final Color signalGrid;
+  final Color heroStart;
+  final Color heroEnd;
+  final Color heroAccent;
   final Color brandSurface;
   final Color onBrandSurface;
   final Color onBrandSurfaceMuted;
@@ -35,6 +41,9 @@ class PikayunColors extends ThemeExtension<PikayunColors> {
     canvasEnd: Color(0xFFF7F9FC),
     signalGlow: Color(0xFF3A9BD8),
     signalGrid: Color(0xFF285F96),
+    heroStart: Color(0xFF0C4F88),
+    heroEnd: Color(0xFF0877BA),
+    heroAccent: Color(0xFF42B9F0),
     brandSurface: Color(0xFF164D73),
     onBrandSurface: Color(0xFFFFFFFF),
     onBrandSurfaceMuted: Color(0xFFC9DCE8),
@@ -50,6 +59,9 @@ class PikayunColors extends ThemeExtension<PikayunColors> {
     canvasEnd: Color(0xFF101925),
     signalGlow: Color(0xFF3B9DD6),
     signalGrid: Color(0xFF79B4F2),
+    heroStart: Color(0xFF071D30),
+    heroEnd: Color(0xFF0B426D),
+    heroAccent: Color(0xFF3A9DD8),
     brandSurface: Color(0xFF123B57),
     onBrandSurface: Color(0xFFF7FBFF),
     onBrandSurfaceMuted: Color(0xFFBBD1DE),
@@ -66,6 +78,9 @@ class PikayunColors extends ThemeExtension<PikayunColors> {
     Color? canvasEnd,
     Color? signalGlow,
     Color? signalGrid,
+    Color? heroStart,
+    Color? heroEnd,
+    Color? heroAccent,
     Color? brandSurface,
     Color? onBrandSurface,
     Color? onBrandSurfaceMuted,
@@ -80,6 +95,9 @@ class PikayunColors extends ThemeExtension<PikayunColors> {
       canvasEnd: canvasEnd ?? this.canvasEnd,
       signalGlow: signalGlow ?? this.signalGlow,
       signalGrid: signalGrid ?? this.signalGrid,
+      heroStart: heroStart ?? this.heroStart,
+      heroEnd: heroEnd ?? this.heroEnd,
+      heroAccent: heroAccent ?? this.heroAccent,
       brandSurface: brandSurface ?? this.brandSurface,
       onBrandSurface: onBrandSurface ?? this.onBrandSurface,
       onBrandSurfaceMuted: onBrandSurfaceMuted ?? this.onBrandSurfaceMuted,
@@ -99,6 +117,9 @@ class PikayunColors extends ThemeExtension<PikayunColors> {
       canvasEnd: Color.lerp(canvasEnd, other.canvasEnd, t)!,
       signalGlow: Color.lerp(signalGlow, other.signalGlow, t)!,
       signalGrid: Color.lerp(signalGrid, other.signalGrid, t)!,
+      heroStart: Color.lerp(heroStart, other.heroStart, t)!,
+      heroEnd: Color.lerp(heroEnd, other.heroEnd, t)!,
+      heroAccent: Color.lerp(heroAccent, other.heroAccent, t)!,
       brandSurface: Color.lerp(brandSurface, other.brandSurface, t)!,
       onBrandSurface: Color.lerp(onBrandSurface, other.onBrandSurface, t)!,
       onBrandSurfaceMuted:

@@ -9,9 +9,14 @@ import '../theme/pikayun_theme.dart';
 /// It adds network-tool identity without competing with live data or adding
 /// permanently running animation.
 class AppBackdrop extends StatelessWidget {
-  const AppBackdrop({required this.child, super.key});
+  const AppBackdrop({
+    required this.child,
+    this.showSignalField = true,
+    super.key,
+  });
 
   final Widget child;
+  final bool showSignalField;
 
   @override
   Widget build(BuildContext context) {
@@ -48,19 +53,20 @@ class AppBackdrop extends StatelessWidget {
             ),
           ),
         ),
-        Positioned.fill(
-          child: IgnorePointer(
-            child: RepaintBoundary(
-              child: CustomPaint(
-                painter: _SignalFieldPainter(
-                  color: colors.signalGrid.withValues(
-                    alpha: isDark ? .085 : .055,
+        if (showSignalField)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: RepaintBoundary(
+                child: CustomPaint(
+                  painter: _SignalFieldPainter(
+                    color: colors.signalGrid.withValues(
+                      alpha: isDark ? .085 : .055,
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
         child,
       ],
     );
