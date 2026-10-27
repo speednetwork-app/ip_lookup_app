@@ -5,45 +5,58 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../models/account_overview.dart';
-import '../models/ip_info.dart';
 import '../providers/auth_provider.dart';
-import '../providers/ip_provider.dart';
 import '../services/vpn_service.dart';
 import '../theme/pikayun_theme.dart';
 import '../widgets/app_backdrop.dart';
 import '../widgets/app_icon_tile.dart';
 import '../widgets/app_surface.dart';
-import '../widgets/status_badge.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({
     required this.onOpenNodes,
-    required this.onOpenIpTools,
     required this.onOpenAccount,
     super.key,
   });
 
   final VoidCallback onOpenNodes;
-  final VoidCallback onOpenIpTools;
   final VoidCallback onOpenAccount;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        toolbarHeight: 68,
-        titleSpacing: 20,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
+        toolbarHeight: 72,
+        titleSpacing: 16,
+        title: Row(
           children: [
-            Text('皮卡云', style: Theme.of(context).textTheme.titleLarge),
-            Text(
-              '网络信息与账号概览',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+            AppIconTile(
+              icon: Icons.bolt_rounded,
+              size: 38,
+              iconSize: 23,
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Colors.white,
+            ),
+            const SizedBox(width: 11),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '皮卡云',
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
+                  Text(
+                    '安全 · 稳定 · 网络工具',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -58,15 +71,18 @@ class DashboardScreen extends StatelessWidget {
       ),
       body: AppBackdrop(
         showSignalField: false,
-        child: Consumer2<AuthProvider, IpProvider>(
-          builder: (context, auth, ipProvider, _) => RefreshIndicator.adaptive(
+        child: Consumer<AuthProvider>(
+          builder: (context, auth, _) => RefreshIndicator.adaptive(
             onRefresh: () async {
-              if (auth.isSignedIn) await auth.refreshAccountData();
-              if (ipProvider.myIp != null) await ipProvider.loadMyIp();
+              if (!auth.isSignedIn) return;
+              await Future.wait([
+                auth.refreshAccountData(),
+                auth.refreshNetworkNodes(),
+              ]);
             },
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 28),
+              padding: const EdgeInsets.fromLTRB(16, 2, 16, 28),
               children: [
                 Center(
                   child: ConstrainedBox(
@@ -74,15 +90,11 @@ class DashboardScreen extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        _NetworkOverview(
-                          info: ipProvider.myIp,
-                          loading: ipProvider.isMyIpLoading,
-                          error: ipProvider.myIpError,
-                          onDetect: ipProvider.loadMyIp,
-                          onOpenDetails: onOpenIpTools,
+                        _ConnectionConsole(
+                          auth: auth,
+                          onOpenNodes: onOpenNodes,
+                          onOpenAccount: onOpenAccount,
                         ),
-                        const SizedBox(height: 12),
-                        _VpnControl(auth: auth, onOpenNodes: onOpenNodes),
                         const SizedBox(height: 16),
                         const _PrivacyNotice(),
                       ],
@@ -98,428 +110,45 @@ class DashboardScreen extends StatelessWidget {
   }
 }
 
-enum _DetectionState { idle, loading, success, failed }
-
-class _NetworkOverview extends StatefulWidget {
-  const _NetworkOverview({
-    required this.info,
-    required this.loading,
-    required this.error,
-    required this.onDetect,
-    required this.onOpenDetails,
+class _ConnectionConsole extends StatefulWidget {
+  const _ConnectionConsole({
+    required this.auth,
+    required this.onOpenNodes,
+    required this.onOpenAccount,
   });
 
-  final IpInfo? info;
-  final bool loading;
-  final String error;
-  final VoidCallback onDetect;
-  final VoidCallback onOpenDetails;
-
-  @override
-  State<_NetworkOverview> createState() => _NetworkOverviewState();
-}
-
-class _NetworkOverviewState extends State<_NetworkOverview> {
-  @override
-  void didUpdateWidget(covariant _NetworkOverview oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.loading &&
-        !widget.loading &&
-        widget.error.isEmpty &&
-        widget.info != null &&
-        !MediaQuery.disableAnimationsOf(context)) {
-      HapticFeedback.lightImpact();
-    }
-  }
-
-  _DetectionState get _state {
-    if (widget.loading) return _DetectionState.loading;
-    if (widget.error.isNotEmpty) return _DetectionState.failed;
-    if (widget.info != null) return _DetectionState.success;
-    return _DetectionState.idle;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.pikayunColors;
-    final info = widget.info;
-    return Semantics(
-      container: true,
-      label: _semanticLabel(info),
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [colors.heroStart, colors.heroEnd],
-          ),
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: colors.heroEnd.withValues(alpha: .2),
-              blurRadius: 22,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(24),
-          child: Stack(
-            children: [
-              Positioned(
-                right: -38,
-                top: 23,
-                child: ExcludeSemantics(
-                  child: SizedBox.square(
-                    dimension: 210,
-                    child: CustomPaint(
-                      painter: _GlobePatternPainter(
-                        color: colors.onBrandSurface.withValues(alpha: .32),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        AppIconTile(
-                          icon: Icons.public_rounded,
-                          size: 40,
-                          iconSize: 21,
-                          backgroundColor:
-                              colors.onBrandSurface.withValues(alpha: .13),
-                          foregroundColor: colors.onBrandSurface,
-                        ),
-                        const SizedBox(width: 10),
-                        _DetectionBadge(state: _state),
-                      ],
-                    ),
-                    const SizedBox(height: 18),
-                    Text(
-                      '当前网络',
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            color: colors.onBrandSurface,
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                    const SizedBox(height: 3),
-                    if (info == null)
-                      Text(
-                        widget.loading ? '正在检测…' : '尚未检测',
-                        style: Theme.of(context)
-                            .textTheme
-                            .headlineMedium
-                            ?.copyWith(
-                              color: colors.onBrandSurface,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: -.5,
-                            ),
-                      )
-                    else
-                      SelectableText(
-                        info.ip,
-                        style: Theme.of(context)
-                            .textTheme
-                            .headlineMedium
-                            ?.copyWith(
-                          color: colors.onBrandSurface,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: -.4,
-                          height: 1.08,
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                        ),
-                      ),
-                    const SizedBox(height: 6),
-                    if (info == null)
-                      SizedBox(
-                        width: 210,
-                        child: Text(
-                          '主动检测后显示公网 IP、估计位置和网络运营商。',
-                          style:
-                              Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: colors.onBrandSurfaceMuted,
-                                    height: 1.35,
-                                  ),
-                        ),
-                      )
-                    else ...[
-                      _NetworkLine(
-                        icon: Icons.location_on_outlined,
-                        text: info.location,
-                      ),
-                      const SizedBox(height: 3),
-                      _NetworkLine(
-                        icon: Icons.router_outlined,
-                        text: info.isp,
-                      ),
-                    ],
-                    if (widget.error.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      _HeroError(message: widget.error),
-                    ],
-                    const SizedBox(height: 16),
-                    Container(
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: colors.onBrandSurface.withValues(alpha: .96),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(16),
-                              onTap: widget.loading ? null : widget.onDetect,
-                              child: Center(
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    if (widget.loading)
-                                      SizedBox.square(
-                                        dimension: 17,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: colors.heroEnd,
-                                        ),
-                                      )
-                                    else
-                                      Icon(
-                                        Icons.radar_rounded,
-                                        size: 19,
-                                        color: colors.heroEnd,
-                                      ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      widget.loading
-                                          ? '正在检测'
-                                          : info == null
-                                              ? '检测当前网络'
-                                              : '重新检测当前网络',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .labelLarge
-                                          ?.copyWith(
-                                            color: colors.heroStart,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                          if (info != null)
-                            Padding(
-                              padding: const EdgeInsets.only(right: 5),
-                              child: IconButton.filled(
-                                tooltip: '查看完整 IP 信息',
-                                onPressed: widget.onOpenDetails,
-                                icon: const Icon(Icons.arrow_forward_rounded),
-                                style: IconButton.styleFrom(
-                                  backgroundColor: colors.heroEnd,
-                                  foregroundColor: colors.onBrandSurface,
-                                  minimumSize: const Size.square(38),
-                                  maximumSize: const Size.square(38),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  String _semanticLabel(IpInfo? info) {
-    if (widget.loading) return '当前网络，正在检测';
-    if (widget.error.isNotEmpty) return '当前网络，检测失败，${widget.error}';
-    if (info == null) return '当前网络，尚未检测';
-    return '当前公网 IP ${info.ip}，IP 估计位置 ${info.location}，网络运营商 ${info.isp}';
-  }
-}
-
-class _GlobePatternPainter extends CustomPainter {
-  const _GlobePatternPainter({required this.color});
-
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width * .5, size.height * .5);
-    final radius = size.shortestSide * .44;
-    final stroke = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-    final dot = Paint()..color = color.withValues(alpha: .82);
-
-    canvas.drawCircle(center, radius, stroke);
-    for (final factor in <double>[.32, .62]) {
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: center,
-          width: radius * 2 * factor,
-          height: radius * 2,
-        ),
-        stroke,
-      );
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: center,
-          width: radius * 2,
-          height: radius * 2 * factor,
-        ),
-        stroke,
-      );
-    }
-
-    for (var latitude = -5; latitude <= 5; latitude++) {
-      for (var longitude = -8; longitude <= 8; longitude++) {
-        final x = longitude / 8;
-        final y = latitude / 5;
-        if (x * x + y * y > 1) continue;
-        final wave = math.sin((x + 1.2) * 3.7) + math.cos((y - .2) * 5.1);
-        if (wave > .42 || (x > .12 && y < .25 && wave > -.1)) {
-          canvas.drawCircle(
-            Offset(center.dx + x * radius, center.dy + y * radius),
-            1.15,
-            dot,
-          );
-        }
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _GlobePatternPainter oldDelegate) =>
-      oldDelegate.color != color;
-}
-
-class _DetectionBadge extends StatelessWidget {
-  const _DetectionBadge({required this.state});
-
-  final _DetectionState state;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.pikayunColors;
-    final (label, icon, foreground) = switch (state) {
-      _DetectionState.loading => ('检测中', Icons.sync, colors.onBrandSurface),
-      _DetectionState.success => (
-          '已检测',
-          Icons.check_circle_outline,
-          colors.onBrandSurface,
-        ),
-      _DetectionState.failed => (
-          '检测失败',
-          Icons.error_outline,
-          const Color(0xFFFFD4D4),
-        ),
-      _DetectionState.idle => (
-          '等待检测',
-          Icons.radio_button_unchecked,
-          colors.onBrandSurfaceMuted,
-        ),
-    };
-    return StatusBadge(
-      label: label,
-      icon: icon,
-      foreground: foreground,
-      background: colors.onBrandSurface.withValues(alpha: .11),
-    );
-  }
-}
-
-class _NetworkLine extends StatelessWidget {
-  const _NetworkLine({
-    required this.icon,
-    required this.text,
-  });
-
-  final IconData icon;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.pikayunColors;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 1),
-          child: Icon(icon, color: colors.onBrandSurfaceMuted, size: 15),
-        ),
-        const SizedBox(width: 6),
-        Flexible(
-          child: Text(
-            text,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colors.onBrandSurfaceMuted,
-                  height: 1.25,
-                ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _HeroError extends StatelessWidget {
-  const _HeroError({required this.message});
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Icon(Icons.error_outline, size: 17, color: Color(0xFFFFD4D4)),
-        const SizedBox(width: 7),
-        Expanded(
-          child: Text(
-            message,
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: const Color(0xFFFFD4D4),
-                  height: 1.35,
-                ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _VpnControl extends StatefulWidget {
-  const _VpnControl({required this.auth, required this.onOpenNodes});
   final AuthProvider auth;
   final VoidCallback onOpenNodes;
+  final VoidCallback onOpenAccount;
 
   @override
-  State<_VpnControl> createState() => _VpnControlState();
+  State<_ConnectionConsole> createState() => _ConnectionConsoleState();
 }
 
-class _VpnControlState extends State<_VpnControl> {
+class _ConnectionConsoleState extends State<_ConnectionConsole> {
   static const _disclosureAcceptedKey = 'vpn_disclosure_accepted_v1';
 
   AuthProvider get auth => widget.auth;
 
-  Future<void> _handleToggle(bool active) async {
-    if (active) {
+  bool get _active =>
+      auth.vpnStatus == VpnConnectionStatus.connected ||
+      auth.vpnStatus == VpnConnectionStatus.connecting ||
+      auth.vpnStatus == VpnConnectionStatus.reasserting;
+
+  bool get _connected => auth.vpnStatus == VpnConnectionStatus.connected;
+
+  bool get _enabled =>
+      auth.isSignedIn &&
+      auth.vpnStatus != VpnConnectionStatus.unsupported &&
+      auth.vpnStatus != VpnConnectionStatus.invalid;
+
+  Future<void> _handlePrimaryAction() async {
+    if (!auth.isSignedIn) {
+      widget.onOpenAccount();
+      return;
+    }
+    if (!_enabled || auth.vpnBusy) return;
+    if (_active) {
       await auth.toggleVpn();
       return;
     }
@@ -533,6 +162,7 @@ class _VpnControlState extends State<_VpnControl> {
       await preferences.setBool(_disclosureAcceptedKey, true);
     }
 
+    HapticFeedback.selectionClick();
     await auth.toggleVpn();
   }
 
@@ -550,14 +180,14 @@ class _VpnControlState extends State<_VpnControl> {
               '连接后，设备网络流量会通过您选择的皮卡云线路传输。iOS 将要求您允许添加 VPN 配置。',
             ),
             SizedBox(height: 12),
-            _VpnDisclosureItem(
+            _DisclosureItem(
               icon: Icons.route_outlined,
-              text: 'VPN 仅在您主动开启后连接，可随时用同一开关断开。',
+              text: 'VPN 仅在您主动开启后连接，可随时使用同一按钮断开。',
             ),
             SizedBox(height: 8),
-            _VpnDisclosureItem(
+            _DisclosureItem(
               icon: Icons.location_off_outlined,
-              text: '应用不读取设备 GPS；页面位置来自公网 IP 的近似归属地。',
+              text: '应用不读取设备 GPS；位置数据来自公网 IP 的近似归属地。',
             ),
           ],
         ),
@@ -579,29 +209,151 @@ class _VpnControlState extends State<_VpnControl> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final colors = context.pikayunColors;
-    final enabled = auth.isSignedIn &&
-        auth.vpnStatus != VpnConnectionStatus.unsupported &&
-        auth.vpnStatus != VpnConnectionStatus.invalid;
-    final active = auth.vpnStatus == VpnConnectionStatus.connected ||
-        auth.vpnStatus == VpnConnectionStatus.connecting ||
-        auth.vpnStatus == VpnConnectionStatus.reasserting;
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
     final onlineCount = auth.networkNodes.where((node) => node.isOnline).length;
+    final selectedNodeName = _selectedNodeName();
 
-    return AppSurface(
-      semanticLabel: '安全连接，${_vpnStatusText(auth)}',
-      padding: const EdgeInsets.fromLTRB(16, 14, 12, 12),
-      child: Column(
-        children: [
-          Row(
+    return Column(
+      children: [
+        SizedBox(
+          height: 390,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Positioned.fill(
+                top: 26,
+                child: ExcludeSemantics(
+                  child: CustomPaint(
+                    painter: _WorldNetworkPainter(
+                      lineColor: scheme.primary.withValues(
+                        alpha: Theme.of(context).brightness == Brightness.dark
+                            ? .28
+                            : .16,
+                      ),
+                      nodeColor: colors.heroAccent.withValues(alpha: .55),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 8,
+                child: _SecurityStatusPill(
+                  connected: _connected,
+                  label: _securityLabel(),
+                ),
+              ),
+              Positioned(
+                top: 110,
+                child: Semantics(
+                  button: true,
+                  enabled: _enabled || !auth.isSignedIn,
+                  label: _primaryTitle(),
+                  hint: _active ? '双击断开 VPN' : '双击开启 VPN',
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: auth.vpnBusy ? null : _handlePrimaryAction,
+                      child: AnimatedContainer(
+                        duration: reduceMotion
+                            ? Duration.zero
+                            : const Duration(milliseconds: 260),
+                        width: 142,
+                        height: 142,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
+                            center: const Alignment(-.28, -.34),
+                            colors: _connected
+                                ? [
+                                    colors.successContainer,
+                                    colors.success,
+                                  ]
+                                : [
+                                    const Color(0xFF6DB8FF),
+                                    scheme.primary,
+                                  ],
+                          ),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: .84),
+                            width: 4,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color:
+                                  (_connected ? colors.success : scheme.primary)
+                                      .withValues(alpha: .28),
+                              blurRadius: 34,
+                              spreadRadius: 8,
+                            ),
+                            BoxShadow(
+                              color: Colors.white.withValues(alpha: .7),
+                              blurRadius: 0,
+                              spreadRadius: 10,
+                            ),
+                          ],
+                        ),
+                        child: Center(
+                          child: auth.vpnBusy && !reduceMotion
+                              ? const SizedBox.square(
+                                  dimension: 48,
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 4,
+                                  ),
+                                )
+                              : const Icon(
+                                  Icons.power_settings_new_rounded,
+                                  color: Colors.white,
+                                  size: 66,
+                                ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 282,
+                left: 16,
+                right: 16,
+                child: Column(
+                  children: [
+                    Text(
+                      _primaryTitle(),
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _secondaryStatus(),
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        AppSurface(
+          onTap: _active ? null : widget.onOpenNodes,
+          semanticLabel: selectedNodeName == null
+              ? '智能线路，选择连接线路'
+              : '当前线路 $selectedNodeName',
+          padding: const EdgeInsets.fromLTRB(14, 13, 12, 13),
+          child: Row(
             children: [
               AppIconTile(
-                icon: active ? Icons.shield : Icons.shield_outlined,
-                size: 44,
-                backgroundColor: active
-                    ? colors.successContainer
-                    : scheme.surfaceContainerHighest,
-                foregroundColor:
-                    active ? colors.success : scheme.onSurfaceVariant,
+                icon: Icons.bolt_rounded,
+                size: 46,
+                iconSize: 25,
+                backgroundColor: scheme.primaryContainer,
+                foregroundColor: scheme.primary,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -609,14 +361,22 @@ class _VpnControlState extends State<_VpnControl> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '安全连接',
+                      selectedNodeName ?? '智能线路',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleSmall?.copyWith(
                             fontWeight: FontWeight.w700,
                           ),
                     ),
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 3),
                     Text(
-                      _vpnStatusText(auth),
+                      selectedNodeName == null
+                          ? '请选择可用线路后再连接'
+                          : onlineCount > 0
+                              ? '当前选择 · $onlineCount 条线路在线'
+                              : '当前选择的连接线路',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: scheme.onSurfaceVariant,
                           ),
@@ -624,106 +384,210 @@ class _VpnControlState extends State<_VpnControl> {
                   ],
                 ),
               ),
-              if (auth.vpnBusy)
-                const Padding(
-                  padding: EdgeInsets.all(12),
-                  child: SizedBox.square(
-                    dimension: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                )
-              else
-                Switch.adaptive(
-                  value: active,
-                  onChanged: enabled ? (_) => _handleToggle(active) : null,
-                ),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: _active
+                    ? scheme.onSurface.withValues(alpha: .25)
+                    : scheme.onSurfaceVariant,
+              ),
             ],
           ),
-          if (auth.isSignedIn) ...[
-            const SizedBox(height: 10),
-            const Divider(),
-            InkWell(
-              borderRadius: BorderRadius.circular(10),
-              onTap: active ? null : widget.onOpenNodes,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 44),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.route_outlined,
-                      size: 19,
-                      color: scheme.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: 9),
-                    Expanded(
-                      child: Text(
-                        auth.selectedNetworkNodeId == null
-                            ? '选择连接线路'
-                            : '当前线路 ${auth.selectedNetworkNodeId}',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                      ),
-                    ),
-                    if (onlineCount > 0)
-                      Text(
-                        '$onlineCount 条在线',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: scheme.onSurfaceVariant,
-                            ),
-                      ),
-                    const SizedBox(width: 4),
-                    Icon(
-                      Icons.chevron_right,
-                      color: active
-                          ? scheme.onSurface.withValues(alpha: .24)
-                          : scheme.onSurfaceVariant,
-                    ),
-                  ],
+        ),
+        if (auth.vpnError.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          AppSurface(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.error_outline_rounded, color: scheme.error),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    auth.vpnError,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: scheme.error,
+                          height: 1.35,
+                        ),
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
-          if (auth.vpnError.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                auth.vpnError,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: scheme.error,
-                      height: 1.35,
-                    ),
-              ),
-            ),
-          ],
+          ),
         ],
-      ),
+      ],
     );
   }
 
-  String _vpnStatusText(AuthProvider auth) {
-    if (!auth.isSignedIn) return '登录后可选择线路并连接';
+  String? _selectedNodeName() {
+    final selectedId = auth.selectedNetworkNodeId;
+    if (selectedId == null || selectedId.isEmpty) return null;
+    for (final node in auth.networkNodes) {
+      if (node.id == selectedId) return node.name;
+    }
+    return selectedId;
+  }
+
+  String _securityLabel() {
+    if (_connected) return '网络安全防护中';
+    if (auth.vpnBusy) return '正在更新连接状态';
+    return '网络防护未开启';
+  }
+
+  String _primaryTitle() {
+    if (!auth.isSignedIn) return '登录后开启安全连接';
     switch (auth.vpnStatus) {
       case VpnConnectionStatus.connected:
-        return '已连接，设备流量正在受到保护';
+        return '安全连接已开启';
       case VpnConnectionStatus.connecting:
       case VpnConnectionStatus.reasserting:
         return '正在建立安全连接';
       case VpnConnectionStatus.disconnecting:
         return '正在断开连接';
       case VpnConnectionStatus.unsupported:
+        return '当前设备不支持 VPN';
+      case VpnConnectionStatus.invalid:
+        return 'VPN 配置暂不可用';
+      case VpnConnectionStatus.disconnected:
+        return '点击开启安全连接';
+    }
+  }
+
+  String _secondaryStatus() {
+    if (!auth.isSignedIn) return '前往“我的”登录账号';
+    switch (auth.vpnStatus) {
+      case VpnConnectionStatus.connected:
+        return '设备流量正在通过当前线路传输';
+      case VpnConnectionStatus.connecting:
+      case VpnConnectionStatus.reasserting:
+        return '正在请求系统建立 VPN 连接';
+      case VpnConnectionStatus.disconnecting:
+        return '请稍候';
+      case VpnConnectionStatus.unsupported:
         return '请在 iPhone 或 iPad 上使用';
       case VpnConnectionStatus.invalid:
-        return '系统 VPN 配置暂不可用';
+        return '请检查系统 VPN 配置后重试';
       case VpnConnectionStatus.disconnected:
-        return '当前未连接';
+        return _selectedNodeName() == null ? '请先选择可用线路' : '当前未连接';
     }
   }
 }
 
-class _VpnDisclosureItem extends StatelessWidget {
-  const _VpnDisclosureItem({required this.icon, required this.text});
+class _WorldNetworkPainter extends CustomPainter {
+  const _WorldNetworkPainter({
+    required this.lineColor,
+    required this.nodeColor,
+  });
+
+  final Color lineColor;
+  final Color nodeColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width * .5, size.height * .48);
+    final radius = math.min(size.width * .48, size.height * .47);
+    final line = Paint()
+      ..color = lineColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1;
+    final glow = Paint()
+      ..color = nodeColor
+      ..style = PaintingStyle.fill;
+
+    canvas.drawCircle(center, radius, line);
+    for (final factor in <double>[.28, .56, .8]) {
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: center,
+          width: radius * 2 * factor,
+          height: radius * 2,
+        ),
+        line,
+      );
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: center,
+          width: radius * 2,
+          height: radius * 2 * factor,
+        ),
+        line,
+      );
+    }
+
+    final nodes = <Offset>[
+      const Offset(-.67, -.25),
+      const Offset(-.4, .12),
+      const Offset(-.06, -.54),
+      const Offset(.2, -.12),
+      const Offset(.55, -.34),
+      const Offset(.68, .18),
+      const Offset(.26, .52),
+      const Offset(-.38, .58),
+    ];
+    for (var index = 0; index < nodes.length; index++) {
+      final current = nodes[index];
+      final next = nodes[(index + 3) % nodes.length];
+      final start = Offset(
+        center.dx + current.dx * radius,
+        center.dy + current.dy * radius,
+      );
+      final end = Offset(
+        center.dx + next.dx * radius,
+        center.dy + next.dy * radius,
+      );
+      canvas.drawLine(start, end, line);
+      canvas.drawCircle(start, 2.2, glow);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _WorldNetworkPainter oldDelegate) =>
+      oldDelegate.lineColor != lineColor || oldDelegate.nodeColor != nodeColor;
+}
+
+class _SecurityStatusPill extends StatelessWidget {
+  const _SecurityStatusPill({
+    required this.connected,
+    required this.label,
+  });
+
+  final bool connected;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.pikayunColors;
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+      decoration: BoxDecoration(
+        color: connected ? colors.successContainer : scheme.primaryContainer,
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            connected ? Icons.verified_user_rounded : Icons.shield_outlined,
+            size: 17,
+            color: connected ? colors.success : scheme.primary,
+          ),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: connected ? colors.success : scheme.primary,
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DisclosureItem extends StatelessWidget {
+  const _DisclosureItem({required this.icon, required this.text});
 
   final IconData icon;
   final String text;
@@ -750,301 +614,6 @@ class _VpnDisclosureItem extends StatelessWidget {
   }
 }
 
-// Kept temporarily as a migration reference while the account presentation is
-// consolidated in AccountScreen; it is no longer rendered on the dashboard.
-// ignore: unused_element
-class _AccountSummary extends StatelessWidget {
-  const _AccountSummary({required this.auth, required this.onOpenAccount});
-  final AuthProvider auth;
-  final VoidCallback onOpenAccount;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final overview = auth.overview;
-    if (!auth.isSignedIn) {
-      return AppSurface(
-        onTap: onOpenAccount,
-        semanticLabel: '皮卡云账号，登录后查看套餐和流量',
-        child: const Row(
-          children: [
-            AppIconTile(icon: Icons.person_outline),
-            SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('皮卡云账号', style: TextStyle(fontWeight: FontWeight.w700)),
-                  SizedBox(height: 3),
-                  Text('登录后查看套餐、流量和到期时间'),
-                ],
-              ),
-            ),
-            Icon(Icons.chevron_right),
-          ],
-        ),
-      );
-    }
-    if (overview == null) {
-      return AppSurface(
-        onTap: onOpenAccount,
-        child: Row(
-          children: [
-            const SizedBox.square(
-              dimension: 22,
-              child: CircularProgressIndicator(strokeWidth: 2.5),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('正在获取账号信息'),
-                  if (auth.error.isNotEmpty) ...[
-                    const SizedBox(height: 3),
-                    Text(auth.error, style: TextStyle(color: scheme.error)),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    final traffic = overview.traffic;
-    final progress = (traffic.usagePercent / 100).clamp(0.0, 1.0);
-    return AppSurface(
-      onTap: onOpenAccount,
-      semanticLabel:
-          '${overview.planName}，${_accountStatus(overview)}，剩余流量 ${_formatBytes(traffic.remainingBytes)}',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const AppIconTile(icon: Icons.cloud_outlined),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      overview.planName.isEmpty ? '皮卡云套餐' : overview.planName,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      _accountStatus(overview),
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: scheme.onSurfaceVariant,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              const Icon(Icons.chevron_right),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  '流量使用 ${traffic.usagePercent.toStringAsFixed(1)}%',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: scheme.onSurfaceVariant,
-                    fontFeatures: const [FontFeature.tabularFigures()],
-                  ),
-                ),
-              ),
-              Text(
-                '剩余 ${_formatBytes(traffic.remainingBytes)}',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          LinearProgressIndicator(
-            value: progress,
-            minHeight: 6,
-            borderRadius: BorderRadius.circular(99),
-          ),
-          const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerRight,
-            child: Text(
-              '${_formatBytes(traffic.usedBytes)} / ${_formatBytes(traffic.totalBytes)}',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: scheme.onSurfaceVariant,
-                fontFeatures: const [FontFeature.tabularFigures()],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ignore: unused_element
-class _LatestNotice extends StatelessWidget {
-  const _LatestNotice({
-    required this.title,
-    required this.content,
-    required this.onOpenAccount,
-  });
-  final String title;
-  final String content;
-  final VoidCallback onOpenAccount;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return AppSurface(
-      onTap: onOpenAccount,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-      child: Row(
-        children: [
-          Icon(Icons.campaign_outlined, color: scheme.primary, size: 22),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title.isEmpty ? '系统公告' : title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                if (content.isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    content,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: scheme.onSurfaceVariant,
-                        ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const Icon(Icons.chevron_right),
-        ],
-      ),
-    );
-  }
-}
-
-// ignore: unused_element
-class _QuickActions extends StatelessWidget {
-  const _QuickActions({
-    required this.onOpenNodes,
-    required this.onOpenIpTools,
-    required this.onOpenHistory,
-    required this.onOpenAccount,
-  });
-  final VoidCallback onOpenNodes;
-  final VoidCallback onOpenIpTools;
-  final VoidCallback onOpenHistory;
-  final VoidCallback onOpenAccount;
-
-  @override
-  Widget build(BuildContext context) {
-    return AppSurface(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-      child: Row(
-        children: [
-          Expanded(
-            child: _QuickAction(
-              icon: Icons.route_outlined,
-              label: '线路',
-              onTap: onOpenNodes,
-            ),
-          ),
-          Expanded(
-            child: _QuickAction(
-              icon: Icons.radar_rounded,
-              label: 'IP 检测',
-              onTap: onOpenIpTools,
-            ),
-          ),
-          Expanded(
-            child: _QuickAction(
-              icon: Icons.history_rounded,
-              label: '查询历史',
-              onTap: onOpenHistory,
-            ),
-          ),
-          Expanded(
-            child: _QuickAction(
-              icon: Icons.person_outline_rounded,
-              label: '账号中心',
-              onTap: onOpenAccount,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _QuickAction extends StatelessWidget {
-  const _QuickAction({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return InkWell(
-      borderRadius: BorderRadius.circular(14),
-      onTap: onTap,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 82),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 8),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              AppIconTile(
-                icon: icon,
-                size: 40,
-                backgroundColor: scheme.primaryContainer.withValues(alpha: .7),
-                foregroundColor: scheme.primary,
-              ),
-              const SizedBox(height: 7),
-              Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _PrivacyNotice extends StatelessWidget {
   const _PrivacyNotice();
 
@@ -1064,7 +633,7 @@ class _PrivacyNotice extends StatelessWidget {
           const SizedBox(width: 9),
           Expanded(
             child: Text(
-              '仅在你主动检测时查询公网 IP，不申请设备 GPS 定位权限。',
+              'VPN 仅在你主动开启后连接；应用不申请设备 GPS 定位权限。',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: scheme.onSurfaceVariant,
                     height: 1.45,
@@ -1075,31 +644,4 @@ class _PrivacyNotice extends StatelessWidget {
       ),
     );
   }
-}
-
-String _accountStatus(AccountOverview overview) {
-  switch (overview.state) {
-    case AccountState.active:
-      final days = overview.remainingDays;
-      return days == null ? '套餐使用中' : '套餐使用中 · 剩余 $days 天';
-    case AccountState.expired:
-      return '套餐已过期';
-    case AccountState.suspended:
-      return '账号已停用';
-    case AccountState.trafficExhausted:
-      return '流量已用尽';
-    case AccountState.inactive:
-      return '账号未启用';
-    case AccountState.unknown:
-      return '账号状态待确认';
-  }
-}
-
-String _formatBytes(int bytes) {
-  const gb = 1024 * 1024 * 1024;
-  const mb = 1024 * 1024;
-  if (bytes >= gb) return '${(bytes / gb).toStringAsFixed(2)} GB';
-  if (bytes >= mb) return '${(bytes / mb).toStringAsFixed(1)} MB';
-  if (bytes <= 0) return '0 KB';
-  return '${(bytes / 1024).toStringAsFixed(1)} KB';
 }

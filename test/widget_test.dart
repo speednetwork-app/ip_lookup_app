@@ -16,9 +16,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('皮卡云'), findsOneWidget);
-    expect(find.text('当前网络'), findsOneWidget);
-    expect(find.text('尚未检测'), findsOneWidget);
-    expect(find.text('等待检测'), findsOneWidget);
+    expect(find.text('网络防护未开启'), findsOneWidget);
+    expect(find.text('登录后开启安全连接'), findsOneWidget);
+    expect(find.text('智能线路'), findsOneWidget);
     expect(find.text('线路'), findsWidgets);
     await tester.tap(find.text('IP 检测').last);
     await tester.pumpAndSettle();
@@ -36,8 +36,9 @@ void main() {
     await tester.pumpWidget(_testApp());
     await tester.pumpAndSettle();
 
-    expect(find.text('尚未检测'), findsOneWidget);
-    expect(find.text('检测当前网络'), findsOneWidget);
+    expect(find.text('网络防护未开启'), findsOneWidget);
+    expect(find.text('登录后开启安全连接'), findsOneWidget);
+    expect(find.text('智能线路'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

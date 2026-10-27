@@ -49,7 +49,6 @@ class _HomeShellState extends State<HomeShell> {
         children: [
           DashboardScreen(
             onOpenNodes: () => _selectTab(1),
-            onOpenIpTools: () => _selectTab(2),
             onOpenAccount: () => _selectTab(4),
           ),
           NodesScreen(onOpenAccount: () => _selectTab(4)),
