@@ -54,6 +54,13 @@ class PrivacyScreen extends StatelessWidget {
                 '系统公告仅在登录后读取。订阅地址和公告不会写入普通缓存。'
                 '退出登录会删除本机账号数据。',
           ),
+          const _InfoTile(
+            icon: Icons.shield_outlined,
+            title: 'VPN 安全连接（可选）',
+            description: '仅在你登录并主动开启后，App 才会向 api.pikayun.com '
+                '获取所选线路的连接配置，并使用 Apple Network Extension 建立 VPN。'
+                '连接期间，设备网络流量会通过所选线路传输；可随时从首页断开。',
+          ),
           const SizedBox(height: 16),
           Text('我们不会做什么', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 8),
@@ -148,7 +155,8 @@ class _SummaryCard extends StatelessWidget {
             const SizedBox(height: 8),
             const Text(
               'IP 查询无需登录。仅当你主动登录已有账号时，App 才会处理邮箱、'
-              '登录凭证和只读账号概览；不访问设备 GPS，不包含广告或用户追踪。',
+              '登录凭证和账号数据。VPN 安全连接仅在你主动开启后工作；'
+              '不访问设备 GPS，不包含广告或用户追踪。',
               textAlign: TextAlign.center,
             ),
           ],

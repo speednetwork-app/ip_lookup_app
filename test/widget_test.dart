@@ -16,7 +16,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('皮卡云'), findsOneWidget);
-    expect(find.text('了解当前网络'), findsOneWidget);
+    expect(find.text('当前网络'), findsOneWidget);
+    expect(find.text('尚未检测'), findsOneWidget);
+    expect(find.text('等待检测'), findsOneWidget);
     expect(find.text('线路'), findsWidgets);
     await tester.tap(find.text('IP 检测').last);
     await tester.pumpAndSettle();
@@ -24,6 +26,19 @@ void main() {
     expect(find.text('查询当前公网 IP'), findsOneWidget);
     expect(find.text('查询我的公网 IP'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsNothing);
+  });
+
+  testWidgets('home remains usable on a compact phone viewport',
+      (tester) async {
+    await tester.binding.setSurfaceSize(const Size(375, 812));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    await tester.pumpWidget(_testApp());
+    await tester.pumpAndSettle();
+
+    expect(find.text('尚未检测'), findsOneWidget);
+    expect(find.text('检测当前网络'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('requires sign-in before showing account lines', (tester) async {
@@ -97,6 +112,14 @@ void main() {
     );
 
     expect(find.text('本地查询历史'), findsOneWidget);
+
+    await tester.scrollUntilVisible(
+      find.text('VPN 安全连接（可选）'),
+      300,
+      scrollable: find.byType(Scrollable).last,
+    );
+
+    expect(find.text('VPN 安全连接（可选）'), findsOneWidget);
 
     await tester.scrollUntilVisible(
       find.textContaining('api.pikayun.com、ipwho.is、ipapi.co、OpenStreetMap'),

@@ -302,7 +302,7 @@ class AuthProvider with ChangeNotifier {
         final config = await _service.getMobileVpnConfig(
           _token,
           nodeId: nodeId,
-          appVersion: '1.6.0+13',
+          appVersion: '1.6.0+14',
         );
         _vpnStatus = VpnConnectionStatus.connecting;
         notifyListeners();
