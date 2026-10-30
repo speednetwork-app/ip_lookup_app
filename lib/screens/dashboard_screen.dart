@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../app_brand.dart';
 import '../providers/auth_provider.dart';
 import '../services/vpn_service.dart';
 import '../theme/pikayun_theme.dart';
@@ -30,12 +31,16 @@ class DashboardScreen extends StatelessWidget {
         titleSpacing: 16,
         title: Row(
           children: [
-            AppIconTile(
-              icon: Icons.bolt_rounded,
-              size: 38,
-              iconSize: 23,
-              backgroundColor: Theme.of(context).colorScheme.primary,
-              foregroundColor: Colors.white,
+            ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Image.asset(
+                AppBrand.iconAsset,
+                width: 40,
+                height: 40,
+                fit: BoxFit.cover,
+                filterQuality: FilterQuality.high,
+                semanticLabel: '皮卡云',
+              ),
             ),
             const SizedBox(width: 11),
             Expanded(
@@ -44,7 +49,7 @@ class DashboardScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '皮卡云',
+                    AppBrand.name,
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   Text(

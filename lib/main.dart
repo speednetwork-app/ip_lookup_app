@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'app_brand.dart';
 import 'providers/auth_provider.dart';
 import 'providers/history_provider.dart';
 import 'providers/ip_provider.dart';
@@ -31,7 +32,7 @@ class MyApp extends StatelessWidget {
         ),
       ],
       child: MaterialApp(
-        title: 'IP 位置查询',
+        title: AppBrand.name,
         debugShowCheckedModeBanner: false,
         theme: PikayunTheme.light(),
         darkTheme: PikayunTheme.dark(),

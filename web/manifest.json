@@ -1,11 +1,11 @@
 {
-    "name": "ip_lookup_app",
-    "short_name": "ip_lookup_app",
+    "name": "皮卡云 VPN",
+    "short_name": "皮卡云",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#0F4FB8",
+    "theme_color": "#2563FF",
+    "description": "IP 检测与可选的 VPN 安全连接工具。",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

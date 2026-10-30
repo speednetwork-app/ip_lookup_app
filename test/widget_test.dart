@@ -136,6 +136,23 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets('shows Pikayun brand help and connection diagnostics',
+      (tester) async {
+    await tester.pumpWidget(_testApp());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('我的'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('关于与帮助'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('皮卡云 VPN'), findsOneWidget);
+    expect(find.text('核心功能'), findsOneWidget);
+    expect(find.text('连接诊断'), findsOneWidget);
+    expect(find.text('VPN 状态'), findsOneWidget);
+    expect(find.text('未登录'), findsOneWidget);
+  });
 }
 
 Widget _testApp() {

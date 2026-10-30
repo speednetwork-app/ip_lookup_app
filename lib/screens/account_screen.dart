@@ -10,6 +10,7 @@ import '../widgets/account_notices_card.dart';
 import '../widgets/app_backdrop.dart';
 import '../widgets/app_page_title.dart';
 import '../widgets/traffic_trend_card.dart';
+import 'about_screen.dart';
 import 'privacy_screen.dart';
 
 class AccountScreen extends StatefulWidget {
@@ -33,6 +34,13 @@ class _AccountScreenState extends State<AccountScreen> {
         ),
         actions: [
           IconButton(
+            tooltip: '关于与帮助',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const AboutScreen()),
+            ),
+            icon: const Icon(Icons.help_outline_rounded),
+          ),
+          IconButton(
             tooltip: '隐私与数据',
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute<void>(builder: (_) => const PrivacyScreen()),
@@ -45,15 +53,15 @@ class _AccountScreenState extends State<AccountScreen> {
       body: AppBackdrop(
         child: Consumer<AuthProvider>(
           builder: (context, auth, _) {
-          switch (auth.status) {
-            case AuthStatus.initializing:
-              return const Center(child: CircularProgressIndicator());
-            case AuthStatus.signedOut:
-            case AuthStatus.signingIn:
-              return _LoginView(auth: auth);
-            case AuthStatus.signedIn:
-              return _buildAccount(context, auth);
-          }
+            switch (auth.status) {
+              case AuthStatus.initializing:
+                return const Center(child: CircularProgressIndicator());
+              case AuthStatus.signedOut:
+              case AuthStatus.signingIn:
+                return _LoginView(auth: auth);
+              case AuthStatus.signedIn:
+                return _buildAccount(context, auth);
+            }
           },
         ),
       ),
