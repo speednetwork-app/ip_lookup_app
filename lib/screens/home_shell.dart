@@ -50,10 +50,11 @@ class _HomeShellState extends State<HomeShell> {
           DashboardScreen(
             onOpenNodes: () => _selectTab(1),
             onOpenAccount: () => _selectTab(4),
+            onOpenIp: () => _selectTab(2),
           ),
           NodesScreen(onOpenAccount: () => _selectTab(4)),
           const HomeScreen(),
-          const HistoryScreen(),
+          HistoryScreen(onOpenIp: () => _selectTab(2)),
           const AccountScreen(),
         ],
       ),

@@ -5,13 +5,16 @@ import 'package:provider/provider.dart';
 import '../models/account_overview.dart';
 import '../models/traffic_trend.dart';
 import '../providers/auth_provider.dart';
+import '../theme/pikayun_theme.dart';
 import '../widgets/account_insights_card.dart';
 import '../widgets/account_notices_card.dart';
 import '../widgets/app_backdrop.dart';
 import '../widgets/app_page_title.dart';
 import '../widgets/traffic_trend_card.dart';
+import '../widgets/auth_form_components.dart';
 import 'about_screen.dart';
 import 'privacy_screen.dart';
+import 'register_screen.dart';
 
 class AccountScreen extends StatefulWidget {
   const AccountScreen({super.key});
@@ -91,13 +94,19 @@ class _AccountScreenState extends State<AccountScreen> {
             _AccountHeader(
               email: auth.email,
               overview: overview,
-              subscribeUrl: overview.subscribeUrl,
-              subscribeRevealed: _showSubscribeUrl,
-              onToggleSubscribe: () => setState(
-                () => _showSubscribeUrl = !_showSubscribeUrl,
-              ),
-              onCopySubscribe: () => _copy(context, overview.subscribeUrl),
             ),
+            if (overview.subscribeUrl.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _SectionCard(
+                child: _InlineSubscription(
+                  url: overview.subscribeUrl,
+                  revealed: _showSubscribeUrl,
+                  onToggle: () =>
+                      setState(() => _showSubscribeUrl = !_showSubscribeUrl),
+                  onCopy: () => _copy(context, overview.subscribeUrl),
+                ),
+              ),
+            ],
             if (_AccountAlert.from(overview) case final alert?) ...[
               const SizedBox(height: 12),
               alert,
@@ -233,10 +242,10 @@ class _AccountAlert extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final color = isCritical ? scheme.error : const Color(0xFF8A5B00);
+    final color = isCritical ? scheme.error : context.pikayunColors.warning;
     final background = isCritical
         ? scheme.errorContainer.withValues(alpha: 0.6)
-        : const Color(0xFFFFF2CF);
+        : context.pikayunColors.warningContainer;
     return Semantics(
       liveRegion: true,
       child: Container(
@@ -273,24 +282,15 @@ class _AccountHeader extends StatelessWidget {
   const _AccountHeader({
     required this.email,
     required this.overview,
-    required this.subscribeUrl,
-    required this.subscribeRevealed,
-    required this.onToggleSubscribe,
-    required this.onCopySubscribe,
   });
 
   final String email;
   final AccountOverview overview;
-  final String subscribeUrl;
-  final bool subscribeRevealed;
-  final VoidCallback onToggleSubscribe;
-  final VoidCallback onCopySubscribe;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return _SectionCard(
-      color: scheme.primaryContainer.withValues(alpha: 0.46),
       child: Column(
         children: [
           Row(
@@ -343,17 +343,6 @@ class _AccountHeader extends StatelessWidget {
               ),
             ],
           ),
-          if (subscribeUrl.isNotEmpty) ...[
-            const SizedBox(height: 14),
-            Divider(height: 1, color: scheme.outlineVariant),
-            const SizedBox(height: 10),
-            _InlineSubscription(
-              url: subscribeUrl,
-              revealed: subscribeRevealed,
-              onToggle: onToggleSubscribe,
-              onCopy: onCopySubscribe,
-            ),
-          ],
         ],
       ),
     );
@@ -452,17 +441,18 @@ class _TrafficCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Icon(Icons.data_usage_rounded, size: 21, color: scheme.primary),
-              const SizedBox(width: 8),
               Text(
                 '流量概览',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w700,
                     ),
               ),
-              const Spacer(),
               Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -505,9 +495,10 @@ class _TrafficCard extends StatelessWidget {
                             : '不限额度',
                         style:
                             Theme.of(context).textTheme.headlineLarge?.copyWith(
-                                  fontWeight: FontWeight.w800,
-                                  color: scheme.primary,
-                                ),
+                          fontWeight: FontWeight.w800,
+                          color: scheme.onSurface,
+                          fontFeatures: const [FontFeature.tabularFigures()],
+                        ),
                       ),
                     ),
                     const SizedBox(height: 5),
@@ -522,8 +513,10 @@ class _TrafficCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 18),
-              _UsageRing(progress: progress, unlimited: !hasQuota),
+              if (MediaQuery.textScalerOf(context).scale(16) <= 24) ...[
+                const SizedBox(width: 18),
+                _UsageRing(progress: progress, unlimited: !hasQuota),
+              ],
             ],
           ),
           const SizedBox(height: 20),
@@ -583,6 +576,7 @@ class _UsageRing extends StatelessWidget {
               dimension: 78,
               child: CircularProgressIndicator(
                 value: progress,
+                color: context.pikayunColors.brandSurface,
                 strokeWidth: 9,
                 strokeCap: StrokeCap.round,
                 backgroundColor: scheme.surfaceContainerHighest,
@@ -690,19 +684,19 @@ class _StatusBadge extends StatelessWidget {
     final (label, foreground, background) = switch (state) {
       AccountState.active => (
           '正常',
-          const Color(0xFF16794A),
-          const Color(0xFFDDF5E8)
+          context.pikayunColors.success,
+          context.pikayunColors.successContainer
         ),
       AccountState.expired => (
           '已过期',
-          const Color(0xFF9A5700),
-          const Color(0xFFFFE9C7)
+          context.pikayunColors.warning,
+          context.pikayunColors.warningContainer
         ),
       AccountState.suspended => ('已停用', scheme.error, scheme.errorContainer),
       AccountState.trafficExhausted => (
           '流量已用完',
-          const Color(0xFF9A5700),
-          const Color(0xFFFFE9C7)
+          context.pikayunColors.warning,
+          context.pikayunColors.warningContainer
         ),
       AccountState.inactive => (
           '未激活',
@@ -749,7 +743,9 @@ class _DetailRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 11),
           child: Row(
             children: [
-              Text(label, style: TextStyle(color: scheme.onSurfaceVariant)),
+              Flexible(
+                  child: Text(label,
+                      style: TextStyle(color: scheme.onSurfaceVariant))),
               const SizedBox(width: 16),
               Expanded(
                 child: Text(
@@ -780,12 +776,13 @@ class _SectionTitle extends StatelessWidget {
       children: [
         Icon(icon, size: 21, color: scheme.primary),
         const SizedBox(width: 8),
-        Text(
+        Expanded(
+            child: Text(
           title,
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w700,
               ),
-        ),
+        )),
       ],
     );
   }
@@ -885,7 +882,6 @@ class _LoginViewState extends State<_LoginView> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  bool _obscurePassword = true;
 
   @override
   void dispose() {
@@ -913,32 +909,9 @@ class _LoginViewState extends State<_LoginView> {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
         children: [
-          const SizedBox(height: 8),
-          Center(
-            child: Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                color: scheme.primaryContainer,
-                shape: BoxShape.circle,
-              ),
-              child:
-                  Icon(Icons.person_outline, size: 38, color: scheme.primary),
-            ),
-          ),
-          const SizedBox(height: 18),
-          Text(
-            '登录已有账号',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '查看账号状态、流量用量和有效期。\nIP 查询功能无需登录。',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: scheme.onSurfaceVariant, height: 1.5),
+          const AuthHeading(
+            title: '登录皮卡云',
+            subtitle: '查看套餐、流量和有效期。IP 查询无需登录。',
           ),
           const SizedBox(height: 22),
           _SectionCard(
@@ -987,29 +960,11 @@ class _LoginViewState extends State<_LoginView> {
                   },
                 ),
                 const SizedBox(height: 14),
-                TextFormField(
+                AuthPasswordField(
                   controller: _passwordController,
                   enabled: !loading,
-                  obscureText: _obscurePassword,
-                  textInputAction: TextInputAction.done,
-                  autofillHints: const [AutofillHints.password],
-                  decoration: InputDecoration(
-                    labelText: '密码',
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: IconButton(
-                      tooltip: _obscurePassword ? '显示密码' : '隐藏密码',
-                      onPressed: () => setState(
-                        () => _obscurePassword = !_obscurePassword,
-                      ),
-                      icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility_outlined
-                            : Icons.visibility_off_outlined,
-                      ),
-                    ),
-                  ),
                   validator: (value) => (value ?? '').isEmpty ? '请输入密码' : null,
-                  onFieldSubmitted: loading ? null : (_) => _submit(),
+                  onSubmitted: _submit,
                 ),
               ],
             ),
@@ -1036,12 +991,17 @@ class _LoginViewState extends State<_LoginView> {
                 : const Text('登录'),
           ),
           const SizedBox(height: 12),
-          Text(
-            '仅支持已有账号，本 App 不提供注册或购买入口。',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                ),
+          TextButton(
+            onPressed: loading
+                ? null
+                : () {
+                    _passwordController.clear();
+                    Navigator.of(context).push(MaterialPageRoute<void>(
+                      builder: (_) => RegisterScreen(
+                          initialEmail: _emailController.text.trim()),
+                    ));
+                  },
+            child: const Text('还没有账号？邮箱注册'),
           ),
         ],
       ),

@@ -7,6 +7,7 @@ import '../providers/auth_provider.dart';
 import '../services/vpn_service.dart';
 import '../theme/pikayun_theme.dart';
 import '../widgets/app_backdrop.dart';
+import '../widgets/app_brand_mark.dart';
 import '../widgets/app_surface.dart';
 import 'privacy_screen.dart';
 
@@ -83,15 +84,7 @@ class _BrandHeader extends StatelessWidget {
       label: '${AppBrand.storeName}，${AppBrand.tagline}',
       child: Column(
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(24),
-            child: Image.asset(
-              'assets/branding/pikayun_app_icon_256.png',
-              width: 92,
-              height: 92,
-              excludeFromSemantics: true,
-            ),
-          ),
+          const AppBrandMark(width: 132, height: 96),
           const SizedBox(height: 14),
           Text(
             AppBrand.storeName,

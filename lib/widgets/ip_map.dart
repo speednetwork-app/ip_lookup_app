@@ -38,8 +38,7 @@ class IpMap extends StatelessWidget {
               ),
               children: [
                 TileLayer(
-                  urlTemplate:
-                      'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                   // OSM 的使用条款要求请求带上可识别的 User-Agent
                   userAgentPackageName: 'com.speednetwork.iplookupapp',
                 ),

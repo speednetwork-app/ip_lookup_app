@@ -3,7 +3,9 @@ abstract final class AppBrand {
   static const storeName = '皮卡云 VPN';
   static const tagline = 'IP 检测与安全连接';
   static const iconAsset = 'assets/branding/pikayun_app_icon_256.png';
+  // Transparent in-app artwork is intentionally separate from launcher icons.
+  static const markAsset = 'assets/branding/pikayun_brand_mark.png';
   static const supportEmail = 'info@robinads.agency';
-  static const version = '1.6.2';
-  static const buildNumber = '16';
+  static const version = '1.6.3';
+  static const buildNumber = '17';
 }

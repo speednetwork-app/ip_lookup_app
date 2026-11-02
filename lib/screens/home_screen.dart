@@ -44,53 +44,50 @@ class HomeScreen extends StatelessWidget {
       body: AppBackdrop(
         child: Consumer<IpProvider>(
           builder: (context, provider, _) {
-          if (provider.isMyIpLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
+            if (provider.isMyIpLoading) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-          if (provider.myIpError.isNotEmpty) {
-            return ErrorView(
-              message: provider.myIpError,
-              onRetry: provider.loadMyIp,
-            );
-          }
+            if (provider.myIpError.isNotEmpty) {
+              return ErrorView(
+                message: provider.myIpError,
+                onRetry: provider.loadMyIp,
+              );
+            }
 
-          final info = provider.myIp;
-          if (info == null) {
-            return EmptyState(
-              icon: Icons.public_off,
-              title: '查询当前公网 IP',
-              message: '点击后会通过 ipwho.is 或 ipapi.co 查询当前网络的'
-                  '公网 IP 和大致归属地。\n\n'
-                  '不会请求或访问设备 GPS 定位。',
-              action: FilledButton.icon(
-                onPressed: provider.loadMyIp,
-                icon: const Icon(Icons.public),
-                label: const Text('查询我的公网 IP'),
+            final info = provider.myIp;
+            if (info == null) {
+              return EmptyState(
+                icon: Icons.public_off,
+                title: '查询当前公网 IP',
+                message: '点击后会通过 ipwho.is 或 ipapi.co 查询当前网络的'
+                    '公网 IP 和大致归属地。\n\n'
+                    '不会请求或访问设备 GPS 定位。',
+                action: FilledButton.icon(
+                  onPressed: provider.loadMyIp,
+                  icon: const Icon(Icons.public),
+                  label: const Text('查询我的公网 IP'),
+                ),
+              );
+            }
+
+            // 下拉刷新——用户换了网络（比如切 Wi-Fi）后会想重新获取
+            return RefreshIndicator(
+              onRefresh: provider.loadMyIp,
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(16),
+                children: [
+                  IpCard(ipInfo: info),
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: provider.loadMyIp,
+                    icon: const Icon(Icons.refresh_rounded, size: 20),
+                    label: const Text('重新检测 IP'),
+                  ),
+                ],
               ),
             );
-          }
-
-          // 下拉刷新——用户换了网络（比如切 Wi-Fi）后会想重新获取
-          return RefreshIndicator(
-            onRefresh: provider.loadMyIp,
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16),
-              children: [
-                IpCard(ipInfo: info),
-                const SizedBox(height: 12),
-                Text(
-                  '下拉可刷新',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          );
           },
         ),
       ),

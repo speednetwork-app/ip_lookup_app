@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'pikayun_typography.dart';
 
 @immutable
 class PikayunColors extends ThemeExtension<PikayunColors> {
@@ -37,34 +38,34 @@ class PikayunColors extends ThemeExtension<PikayunColors> {
   final Color separator;
 
   static const light = PikayunColors(
-    canvasStart: Color(0xFFF0F6FC),
-    canvasEnd: Color(0xFFF7F9FC),
-    signalGlow: Color(0xFF3A9BD8),
-    signalGrid: Color(0xFF285F96),
-    heroStart: Color(0xFF0C4F88),
-    heroEnd: Color(0xFF0877BA),
-    heroAccent: Color(0xFF42B9F0),
-    brandSurface: Color(0xFF164D73),
-    onBrandSurface: Color(0xFFFFFFFF),
-    onBrandSurfaceMuted: Color(0xFFC9DCE8),
+    canvasStart: Color(0xFFF8F6EF),
+    canvasEnd: Color(0xFFF8F6EF),
+    signalGlow: Color(0xFFFFD43B),
+    signalGrid: Color(0xFF705716),
+    heroStart: Color(0xFF252822),
+    heroEnd: Color(0xFF252822),
+    heroAccent: Color(0xFFFFD43B),
+    brandSurface: Color(0xFFFFD43B),
+    onBrandSurface: Color(0xFF27251F),
+    onBrandSurfaceMuted: Color(0xFF705716),
     success: Color(0xFF087A61),
     successContainer: Color(0xFFDDF5EC),
     warning: Color(0xFF936000),
     warningContainer: Color(0xFFFFEEC5),
-    separator: Color(0x1F1B2833),
+    separator: Color(0xFFE5DFCF),
   );
 
   static const dark = PikayunColors(
-    canvasStart: Color(0xFF0B1623),
-    canvasEnd: Color(0xFF101925),
-    signalGlow: Color(0xFF3B9DD6),
-    signalGrid: Color(0xFF79B4F2),
-    heroStart: Color(0xFF071D30),
-    heroEnd: Color(0xFF0B426D),
-    heroAccent: Color(0xFF3A9DD8),
-    brandSurface: Color(0xFF123B57),
-    onBrandSurface: Color(0xFFF7FBFF),
-    onBrandSurfaceMuted: Color(0xFFBBD1DE),
+    canvasStart: Color(0xFF181917),
+    canvasEnd: Color(0xFF181917),
+    signalGlow: Color(0xFFFFD43B),
+    signalGrid: Color(0xFFE4CD84),
+    heroStart: Color(0xFF262923),
+    heroEnd: Color(0xFF262923),
+    heroAccent: Color(0xFFFFD43B),
+    brandSurface: Color(0xFFFFD43B),
+    onBrandSurface: Color(0xFF27251F),
+    onBrandSurfaceMuted: Color(0xFF705716),
     success: Color(0xFF61D6B4),
     successContainer: Color(0xFF123E35),
     warning: Color(0xFFFFC864),
@@ -150,37 +151,55 @@ class PikayunTheme {
   static ThemeData _build(Brightness brightness) {
     final isDark = brightness == Brightness.dark;
     final scheme = ColorScheme.fromSeed(
-      seedColor: const Color(0xFF246B9B),
+      seedColor: const Color(0xFFFFD43B),
       brightness: brightness,
-      surface: isDark ? const Color(0xFF101925) : const Color(0xFFF0F6FC),
+    ).copyWith(
+      primary: isDark ? const Color(0xFFFFDF70) : const Color(0xFF705716),
+      onPrimary: isDark ? const Color(0xFF27251F) : Colors.white,
+      primaryContainer:
+          isDark ? const Color(0xFF494126) : const Color(0xFFFFF0AC),
+      onPrimaryContainer:
+          isDark ? const Color(0xFFFFE793) : const Color(0xFF302D26),
+      surface: isDark ? const Color(0xFF262723) : Colors.white,
+      onSurface: isDark ? const Color(0xFFFAF8F1) : const Color(0xFF242321),
+      onSurfaceVariant:
+          isDark ? const Color(0xFFC6C1B2) : const Color(0xFF6D695E),
+      surfaceContainerLowest: isDark ? const Color(0xFF20211E) : Colors.white,
+      surfaceContainerLow:
+          isDark ? const Color(0xFF2C2E28) : const Color(0xFFF3F0E6),
+      surfaceContainer:
+          isDark ? const Color(0xFF30322B) : const Color(0xFFF1EFE5),
+      surfaceContainerHighest:
+          isDark ? const Color(0xFF3B3E35) : const Color(0xFFECE6D7),
+      outlineVariant:
+          isDark ? const Color(0xFF484B40) : const Color(0xFFE5DFCF),
+      error: isDark ? const Color(0xFFFFAAA1) : const Color(0xFFB93B41),
+      errorContainer:
+          isDark ? const Color(0xFF4B2628) : const Color(0xFFFCEDEE),
+      onErrorContainer:
+          isDark ? const Color(0xFFFFDAD6) : const Color(0xFF872A30),
     );
     final base = ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
       brightness: brightness,
     );
-    final textTheme = base.textTheme.copyWith(
-      headlineSmall: base.textTheme.headlineSmall?.copyWith(
-        fontWeight: FontWeight.w700,
-        letterSpacing: -0.4,
-      ),
-      titleLarge: base.textTheme.titleLarge?.copyWith(
-        fontWeight: FontWeight.w700,
-        letterSpacing: -0.2,
-      ),
-      titleMedium: base.textTheme.titleMedium?.copyWith(
-        fontWeight: FontWeight.w600,
-      ),
-    );
+    final textTheme = PikayunTypography.build(base.textTheme, base.platform);
 
     return base.copyWith(
       textTheme: textTheme,
+      primaryTextTheme:
+          PikayunTypography.build(base.primaryTextTheme, base.platform),
       scaffoldBackgroundColor:
           isDark ? PikayunColors.dark.canvasEnd : PikayunColors.light.canvasEnd,
       extensions: [isDark ? PikayunColors.dark : PikayunColors.light],
       appBarTheme: AppBarTheme(
-        backgroundColor:
-            isDark ? PikayunColors.dark.canvasStart : PikayunColors.light.canvasStart,
+        centerTitle: false,
+        titleSpacing: 16,
+        toolbarHeight: 72,
+        backgroundColor: isDark
+            ? PikayunColors.dark.canvasStart
+            : PikayunColors.light.canvasStart,
         foregroundColor: scheme.onSurface,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
@@ -189,20 +208,21 @@ class PikayunTheme {
       cardTheme: CardThemeData(
         elevation: 0,
         margin: EdgeInsets.zero,
-        color: isDark ? const Color(0xFF182434) : const Color(0xFFFCFEFF),
+        color: scheme.surface,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          side: BorderSide(color: scheme.outlineVariant.withValues(alpha: .7)),
           borderRadius: BorderRadius.circular(18),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
+          backgroundColor: const Color(0xFFFFD43B),
+          foregroundColor: const Color(0xFF27251F),
           minimumSize: const Size(44, 48),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
           ),
-          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+          textStyle: textTheme.labelLarge,
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -218,13 +238,22 @@ class PikayunTheme {
         ),
       ),
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: isDark ? const Color(0xFF162231) : const Color(0xFFF8FBFE),
+        backgroundColor: scheme.surface,
         indicatorColor: scheme.primaryContainer,
         elevation: 0,
         height: 68,
+        iconTheme: WidgetStateProperty.resolveWith((states) => IconThemeData(
+              color: states.contains(WidgetState.selected)
+                  ? scheme.onPrimaryContainer
+                  : scheme.onSurfaceVariant,
+              size: 22,
+            )),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           return TextStyle(
-            fontSize: 12,
+            fontSize: 11,
+            color: states.contains(WidgetState.selected)
+                ? scheme.onSurface
+                : scheme.onSurfaceVariant,
             fontWeight: states.contains(WidgetState.selected)
                 ? FontWeight.w600
                 : FontWeight.w400,

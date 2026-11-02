@@ -5,6 +5,7 @@ import '../models/account_notice.dart';
 import '../models/traffic_trend.dart';
 import '../models/network_node.dart';
 import '../models/mobile_vpn_config.dart';
+import '../models/registration_config.dart';
 
 class AuthException implements Exception {
   const AuthException(this.message, {this.isUnauthorized = false});
@@ -36,6 +37,110 @@ class AuthService {
             );
 
   final Dio _dio;
+
+  Future<RegistrationConfig> getRegistrationConfig() async {
+    final body = await _registrationRequest('/guest/comm/config');
+    final data = _asMap(body['data']);
+    if (body['data'] is! Map ||
+        !data.containsKey('is_email_verify') ||
+        !data.containsKey('is_invite_force') ||
+        !data.containsKey('simple_captcha_enable') ||
+        !(data.containsKey('is_captcha') || data.containsKey('is_recaptcha'))) {
+      throw const AuthException('注册配置无效，请重试');
+    }
+    return RegistrationConfig.fromJson(data);
+  }
+
+  Future<RegistrationCaptcha> getRegistrationCaptcha() async {
+    final body = await _registrationRequest('/guest/comm/simpleCaptcha');
+    final data = _asMap(body['data']);
+    final token = data['token'];
+    final question = data['question'];
+    final ttl = int.tryParse('${data['ttl']}') ?? 0;
+    if (token is! String ||
+        token.isEmpty ||
+        question is! String ||
+        question.isEmpty ||
+        ttl <= 0) {
+      throw const AuthException('验证码获取失败，请重试');
+    }
+    return RegistrationCaptcha(
+      token: token,
+      question: question,
+      expiresAt: DateTime.now().add(Duration(seconds: ttl)),
+    );
+  }
+
+  Future<void> sendRegistrationEmailCode({
+    required String email,
+    String captchaToken = '',
+    String captchaAnswer = '',
+  }) async {
+    final body = await _registrationRequest(
+      '/passport/comm/sendEmailVerify',
+      data: {
+        'email': email.trim(),
+        if (captchaToken.isNotEmpty) 'simple_captcha_token': captchaToken,
+        if (captchaAnswer.trim().isNotEmpty)
+          'simple_captcha_answer': captchaAnswer.trim(),
+      },
+    );
+    if (body['data'] != true) {
+      throw const AuthException('邮件发送未获确认，请稍后重试');
+    }
+  }
+
+  Future<LoginResult> register(RegistrationInput input) async {
+    final body = await _registrationRequest(
+      '/passport/auth/register',
+      data: input.toJson(),
+    );
+    final data = _asMap(body['data']);
+    final authData = data['auth_data'];
+    final plainToken = data['token'];
+    final token = authData is String && authData.trim().isNotEmpty
+        ? authData.trim()
+        : plainToken is String
+            ? plainToken.trim()
+            : '';
+    if (token.isEmpty) {
+      // Do not retry registration: the server may already have created it.
+      throw const AuthException('服务器未返回登录凭证；如账号已创建，请返回登录');
+    }
+    return LoginResult(token: token);
+  }
+
+  Future<Map<String, dynamic>> _registrationRequest(
+    String path, {
+    Map<String, dynamic>? data,
+  }) async {
+    try {
+      final response = data == null
+          ? await _dio.get<dynamic>(path,
+              queryParameters: {'t': DateTime.now().millisecondsSinceEpoch})
+          : await _dio.post<dynamic>(path, data: data);
+      final body = _asMap(response.data);
+      if (body['status'] != 'success') {
+        throw AuthException(_message(body, fallback: '注册请求失败，请稍后重试'));
+      }
+      return body;
+    } on AuthException {
+      rethrow;
+    } on DioException catch (error) {
+      final status = error.response?.statusCode;
+      final message = _message(_asMap(error.response?.data), fallback: '');
+      if (status != null && status < 500 && message.isNotEmpty) {
+        throw AuthException(message);
+      }
+      if (status == 429) {
+        throw const AuthException('操作过于频繁，请稍后重试');
+      }
+      if (status == null) throw _friendlyDioError(error);
+      throw const AuthException('注册服务暂不可用，请稍后重试');
+    } catch (_) {
+      throw const AuthException('注册请求失败，请稍后重试');
+    }
+  }
 
   Future<LoginResult> login({
     required String email,

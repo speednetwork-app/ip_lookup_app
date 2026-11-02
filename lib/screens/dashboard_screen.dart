@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -7,9 +5,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../app_brand.dart';
 import '../providers/auth_provider.dart';
+import '../providers/ip_provider.dart';
 import '../services/vpn_service.dart';
 import '../theme/pikayun_theme.dart';
 import '../widgets/app_backdrop.dart';
+import '../widgets/app_brand_mark.dart';
 import '../widgets/app_icon_tile.dart';
 import '../widgets/app_surface.dart';
 
@@ -17,11 +17,13 @@ class DashboardScreen extends StatelessWidget {
   const DashboardScreen({
     required this.onOpenNodes,
     required this.onOpenAccount,
+    required this.onOpenIp,
     super.key,
   });
 
   final VoidCallback onOpenNodes;
   final VoidCallback onOpenAccount;
+  final VoidCallback onOpenIp;
 
   @override
   Widget build(BuildContext context) {
@@ -31,18 +33,8 @@ class DashboardScreen extends StatelessWidget {
         titleSpacing: 16,
         title: Row(
           children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: Image.asset(
-                AppBrand.iconAsset,
-                width: 40,
-                height: 40,
-                fit: BoxFit.cover,
-                filterQuality: FilterQuality.high,
-                semanticLabel: '皮卡云',
-              ),
-            ),
-            const SizedBox(width: 11),
+            const AppBrandMark(),
+            const SizedBox(width: 10),
             Expanded(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -99,6 +91,7 @@ class DashboardScreen extends StatelessWidget {
                           auth: auth,
                           onOpenNodes: onOpenNodes,
                           onOpenAccount: onOpenAccount,
+                          onOpenIp: onOpenIp,
                         ),
                         const SizedBox(height: 16),
                         const _PrivacyNotice(),
@@ -120,11 +113,13 @@ class _ConnectionConsole extends StatefulWidget {
     required this.auth,
     required this.onOpenNodes,
     required this.onOpenAccount,
+    required this.onOpenIp,
   });
 
   final AuthProvider auth;
   final VoidCallback onOpenNodes;
   final VoidCallback onOpenAccount;
+  final VoidCallback onOpenIp;
 
   @override
   State<_ConnectionConsole> createState() => _ConnectionConsoleState();
@@ -215,43 +210,29 @@ class _ConnectionConsoleState extends State<_ConnectionConsole> {
     final scheme = Theme.of(context).colorScheme;
     final colors = context.pikayunColors;
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
-    final onlineCount = auth.networkNodes.where((node) => node.isOnline).length;
     final selectedNodeName = _selectedNodeName();
+    final textScale = MediaQuery.textScalerOf(context).scale(16) / 16;
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SizedBox(
-          height: 390,
-          child: Stack(
-            alignment: Alignment.center,
+        Container(
+          constraints: const BoxConstraints(minHeight: 280),
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: colors.heroStart,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Positioned.fill(
-                top: 26,
-                child: ExcludeSemantics(
-                  child: CustomPaint(
-                    painter: _WorldNetworkPainter(
-                      lineColor: scheme.primary.withValues(
-                        alpha: Theme.of(context).brightness == Brightness.dark
-                            ? .28
-                            : .16,
-                      ),
-                      nodeColor: colors.heroAccent.withValues(alpha: .55),
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                top: 8,
-                child: _SecurityStatusPill(
-                  connected: _connected,
-                  label: _securityLabel(),
-                ),
-              ),
-              Positioned(
-                top: 110,
+              _SecurityStatusPill(
+                  connected: _connected, label: _securityLabel()),
+              SizedBox(height: textScale > 1.3 ? 20 : 16),
+              Center(
                 child: Semantics(
                   button: true,
-                  enabled: _enabled || !auth.isSignedIn,
+                  enabled: (_enabled || !auth.isSignedIn) && !auth.vpnBusy,
                   label: _primaryTitle(),
                   hint: _active ? '双击断开 VPN' : '双击开启 VPN',
                   child: Material(
@@ -262,55 +243,30 @@ class _ConnectionConsoleState extends State<_ConnectionConsole> {
                       child: AnimatedContainer(
                         duration: reduceMotion
                             ? Duration.zero
-                            : const Duration(milliseconds: 260),
-                        width: 142,
-                        height: 142,
+                            : const Duration(milliseconds: 220),
+                        width: 112,
+                        height: 112,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          gradient: RadialGradient(
-                            center: const Alignment(-.28, -.34),
-                            colors: _connected
-                                ? [
-                                    colors.successContainer,
-                                    colors.success,
-                                  ]
-                                : [
-                                    const Color(0xFF6DB8FF),
-                                    scheme.primary,
-                                  ],
-                          ),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: .84),
-                            width: 4,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color:
-                                  (_connected ? colors.success : scheme.primary)
-                                      .withValues(alpha: .28),
-                              blurRadius: 34,
-                              spreadRadius: 8,
-                            ),
-                            BoxShadow(
-                              color: Colors.white.withValues(alpha: .7),
-                              blurRadius: 0,
-                              spreadRadius: 10,
-                            ),
-                          ],
+                          color: _connected
+                              ? colors.successContainer
+                              : colors.brandSurface,
                         ),
                         child: Center(
-                          child: auth.vpnBusy && !reduceMotion
-                              ? const SizedBox.square(
-                                  dimension: 48,
+                          child: auth.vpnBusy
+                              ? SizedBox.square(
+                                  dimension: 38,
                                   child: CircularProgressIndicator(
-                                    color: Colors.white,
-                                    strokeWidth: 4,
+                                    color: colors.onBrandSurface,
+                                    strokeWidth: 3,
                                   ),
                                 )
-                              : const Icon(
+                              : Icon(
                                   Icons.power_settings_new_rounded,
-                                  color: Colors.white,
-                                  size: 66,
+                                  color: _connected
+                                      ? colors.success
+                                      : colors.onBrandSurface,
+                                  size: 52,
                                 ),
                         ),
                       ),
@@ -318,45 +274,45 @@ class _ConnectionConsoleState extends State<_ConnectionConsole> {
                   ),
                 ),
               ),
-              Positioned(
-                top: 282,
-                left: 16,
-                right: 16,
-                child: Column(
-                  children: [
-                    Text(
-                      _primaryTitle(),
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _secondaryStatus(),
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: scheme.onSurfaceVariant,
-                          ),
-                    ),
-                  ],
+              const SizedBox(height: 14),
+              Center(
+                child: Text(
+                  _primaryTitle(),
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Center(
+                child: Text(
+                  _secondaryStatus(),
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Colors.white.withValues(alpha: .76),
+                      ),
                 ),
               ),
             ],
           ),
         ),
+        const SizedBox(height: 12),
+        _CurrentIpSummary(onOpenIp: widget.onOpenIp),
+        const SizedBox(height: 12),
         AppSurface(
           onTap: _active ? null : widget.onOpenNodes,
           semanticLabel: selectedNodeName == null
-              ? '智能线路，选择连接线路'
+              ? '当前线路，尚未选择，点击选择线路'
               : '当前线路 $selectedNodeName',
-          padding: const EdgeInsets.fromLTRB(14, 13, 12, 13),
+          padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
           child: Row(
             children: [
               AppIconTile(
-                icon: Icons.bolt_rounded,
+                icon: Icons.route_outlined,
                 size: 46,
-                iconSize: 25,
+                iconSize: 24,
                 backgroundColor: scheme.primaryContainer,
                 foregroundColor: scheme.primary,
               ),
@@ -365,22 +321,11 @@ class _ConnectionConsoleState extends State<_ConnectionConsole> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Text('当前线路', style: Theme.of(context).textTheme.titleSmall),
+                    const SizedBox(height: 4),
                     Text(
-                      selectedNodeName ?? '智能线路',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      selectedNodeName == null
-                          ? '请选择可用线路后再连接'
-                          : onlineCount > 0
-                              ? '当前选择 · $onlineCount 条线路在线'
-                              : '当前选择的连接线路',
-                      maxLines: 1,
+                      selectedNodeName ?? '尚未选择 · 点击选择线路',
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: scheme.onSurfaceVariant,
@@ -390,18 +335,16 @@ class _ConnectionConsoleState extends State<_ConnectionConsole> {
                 ),
               ),
               Icon(
-                Icons.chevron_right_rounded,
-                color: _active
-                    ? scheme.onSurface.withValues(alpha: .25)
-                    : scheme.onSurfaceVariant,
+                _active ? Icons.lock_outline : Icons.chevron_right_rounded,
+                size: 20,
+                color: scheme.onSurfaceVariant,
               ),
             ],
           ),
         ),
         if (auth.vpnError.isNotEmpty) ...[
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           AppSurface(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -412,7 +355,6 @@ class _ConnectionConsoleState extends State<_ConnectionConsole> {
                     auth.vpnError,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: scheme.error,
-                          height: 1.35,
                         ),
                   ),
                 ),
@@ -434,9 +376,23 @@ class _ConnectionConsoleState extends State<_ConnectionConsole> {
   }
 
   String _securityLabel() {
-    if (_connected) return '网络安全防护中';
+    if (_connected) return 'VPN 已连接';
     if (auth.vpnBusy) return '正在更新连接状态';
-    return '网络防护未开启';
+    switch (auth.vpnStatus) {
+      case VpnConnectionStatus.connecting:
+      case VpnConnectionStatus.reasserting:
+        return 'VPN 连接中';
+      case VpnConnectionStatus.disconnecting:
+        return 'VPN 正在断开';
+      case VpnConnectionStatus.unsupported:
+        return '当前平台不支持 VPN';
+      case VpnConnectionStatus.invalid:
+        return 'VPN 配置不可用';
+      case VpnConnectionStatus.disconnected:
+        return 'VPN 未连接';
+      case VpnConnectionStatus.connected:
+        return 'VPN 已连接';
+    }
   }
 
   String _primaryTitle() {
@@ -454,7 +410,7 @@ class _ConnectionConsoleState extends State<_ConnectionConsole> {
       case VpnConnectionStatus.invalid:
         return 'VPN 配置暂不可用';
       case VpnConnectionStatus.disconnected:
-        return '点击开启安全连接';
+        return '开启 VPN 连接';
     }
   }
 
@@ -478,78 +434,6 @@ class _ConnectionConsoleState extends State<_ConnectionConsole> {
   }
 }
 
-class _WorldNetworkPainter extends CustomPainter {
-  const _WorldNetworkPainter({
-    required this.lineColor,
-    required this.nodeColor,
-  });
-
-  final Color lineColor;
-  final Color nodeColor;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width * .5, size.height * .48);
-    final radius = math.min(size.width * .48, size.height * .47);
-    final line = Paint()
-      ..color = lineColor
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-    final glow = Paint()
-      ..color = nodeColor
-      ..style = PaintingStyle.fill;
-
-    canvas.drawCircle(center, radius, line);
-    for (final factor in <double>[.28, .56, .8]) {
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: center,
-          width: radius * 2 * factor,
-          height: radius * 2,
-        ),
-        line,
-      );
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: center,
-          width: radius * 2,
-          height: radius * 2 * factor,
-        ),
-        line,
-      );
-    }
-
-    final nodes = <Offset>[
-      const Offset(-.67, -.25),
-      const Offset(-.4, .12),
-      const Offset(-.06, -.54),
-      const Offset(.2, -.12),
-      const Offset(.55, -.34),
-      const Offset(.68, .18),
-      const Offset(.26, .52),
-      const Offset(-.38, .58),
-    ];
-    for (var index = 0; index < nodes.length; index++) {
-      final current = nodes[index];
-      final next = nodes[(index + 3) % nodes.length];
-      final start = Offset(
-        center.dx + current.dx * radius,
-        center.dy + current.dy * radius,
-      );
-      final end = Offset(
-        center.dx + next.dx * radius,
-        center.dy + next.dy * radius,
-      );
-      canvas.drawLine(start, end, line);
-      canvas.drawCircle(start, 2.2, glow);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _WorldNetworkPainter oldDelegate) =>
-      oldDelegate.lineColor != lineColor || oldDelegate.nodeColor != nodeColor;
-}
-
 class _SecurityStatusPill extends StatelessWidget {
   const _SecurityStatusPill({
     required this.connected,
@@ -562,30 +446,109 @@ class _SecurityStatusPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.pikayunColors;
-    final scheme = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: connected ? colors.successContainer : scheme.primaryContainer,
+        color: connected
+            ? colors.successContainer
+            : Colors.white.withValues(alpha: .12),
         borderRadius: BorderRadius.circular(99),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            connected ? Icons.verified_user_rounded : Icons.shield_outlined,
-            size: 17,
-            color: connected ? colors.success : scheme.primary,
+            connected ? Icons.check_circle_outline : Icons.power_settings_new,
+            size: 14,
+            color:
+                connected ? colors.success : Colors.white.withValues(alpha: .8),
           ),
           const SizedBox(width: 6),
           Text(
             label,
             style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: connected ? colors.success : scheme.primary,
+                  color: connected
+                      ? colors.success
+                      : Colors.white.withValues(alpha: .8),
                   fontWeight: FontWeight.w700,
                 ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _CurrentIpSummary extends StatelessWidget {
+  const _CurrentIpSummary({required this.onOpenIp});
+
+  final VoidCallback onOpenIp;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final colors = context.pikayunColors;
+    return Consumer<IpProvider>(
+      builder: (context, ip, _) => AppSurface(
+        onTap: onOpenIp,
+        semanticLabel: '当前公网 IP，打开 IP 检测',
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AppIconTile(
+              icon: Icons.public,
+              size: 42,
+              backgroundColor: colors.successContainer,
+              foregroundColor: colors.success,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('当前公网 IP', style: Theme.of(context).textTheme.bodySmall),
+                  const SizedBox(height: 4),
+                  Text(
+                    ip.myIp?.ip ?? '尚未检测',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    ip.isMyIpLoading
+                        ? '正在检测当前网络'
+                        : ip.myIpError.isNotEmpty
+                            ? '检测失败，点击重试'
+                            : ip.myIp == null
+                                ? '主动检测后显示 IP 与近似位置'
+                                : '${ip.myIp!.location}\n${ip.myIp!.isp}',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: ip.myIpError.isEmpty
+                              ? scheme.onSurfaceVariant
+                              : scheme.error,
+                        ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton.filled(
+              tooltip: ip.myIp == null ? '检测当前公网 IP' : '重新检测公网 IP',
+              onPressed: ip.isMyIpLoading ? null : ip.loadMyIp,
+              style: IconButton.styleFrom(
+                backgroundColor: colors.brandSurface,
+                foregroundColor: colors.onBrandSurface,
+              ),
+              icon: ip.isMyIpLoading
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.refresh_rounded, size: 21),
+            ),
+          ],
+        ),
       ),
     );
   }

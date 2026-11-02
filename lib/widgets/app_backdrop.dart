@@ -11,7 +11,7 @@ import '../theme/pikayun_theme.dart';
 class AppBackdrop extends StatelessWidget {
   const AppBackdrop({
     required this.child,
-    this.showSignalField = true,
+    this.showSignalField = false,
     super.key,
   });
 
@@ -35,24 +35,25 @@ class AppBackdrop extends StatelessWidget {
             ),
           ),
         ),
-        Positioned(
-          top: -150,
-          right: -130,
-          width: 360,
-          height: 360,
-          child: IgnorePointer(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  colors: [
-                    colors.signalGlow.withValues(alpha: isDark ? .18 : .13),
-                    colors.signalGlow.withValues(alpha: 0),
-                  ],
+        if (showSignalField)
+          Positioned(
+            top: -150,
+            right: -130,
+            width: 360,
+            height: 360,
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    colors: [
+                      colors.signalGlow.withValues(alpha: isDark ? .18 : .13),
+                      colors.signalGlow.withValues(alpha: 0),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-        ),
         if (showSignalField)
           Positioned.fill(
             child: IgnorePointer(
@@ -67,7 +68,13 @@ class AppBackdrop extends StatelessWidget {
               ),
             ),
           ),
-        child,
+        Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 720),
+            child: child,
+          ),
+        ),
       ],
     );
   }

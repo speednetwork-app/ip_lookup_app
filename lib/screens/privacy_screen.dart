@@ -42,9 +42,10 @@ class PrivacyScreen extends StatelessWidget {
           ),
           const _InfoTile(
             icon: Icons.account_circle_outlined,
-            title: '账号登录（可选）',
-            description: '仅在你主动登录已有账号时，邮箱和密码会通过 HTTPS '
-                '发送至 api.pikayun.com 完成身份验证。密码不会保存在本机。',
+            title: '邮箱注册与登录（可选）',
+            description: '仅在你主动注册或登录时，邮箱、密码以及必要的验证信息会通过 HTTPS '
+                '发送至 api.pikayun.com，用于创建账号、防止滥用与身份验证。'
+                '后端要求邮箱验证时，会向你提供的邮箱发送验证码。密码不会保存在本机。',
           ),
           const _InfoTile(
             icon: Icons.key_outlined,
@@ -75,7 +76,7 @@ class PrivacyScreen extends StatelessWidget {
                   _CheckRow(text: '不访问照片、相机或麦克风'),
                   _CheckRow(text: '不申请 GPS 定位权限'),
                   _CheckRow(text: '不包含广告、分析 SDK 或用户追踪'),
-                  _CheckRow(text: '不提供注册、付费或应用内购买'),
+                  _CheckRow(text: '注册不会自动购买套餐，不提供付费或应用内购买'),
                   _CheckRow(text: '不出售或向第三方披露账号数据、登录凭证和订阅地址'),
                 ],
               ),
@@ -154,7 +155,7 @@ class _SummaryCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             const Text(
-              'IP 查询无需登录。仅当你主动登录已有账号时，App 才会处理邮箱、'
+              'IP 查询无需登录。仅当你主动注册或登录时，App 才会处理邮箱、'
               '登录凭证和账号数据。VPN 安全连接仅在你主动开启后工作；'
               '不访问设备 GPS，不包含广告或用户追踪。',
               textAlign: TextAlign.center,

@@ -7,6 +7,7 @@ import '../models/account_overview.dart';
 import '../models/account_notice.dart';
 import '../models/traffic_trend.dart';
 import '../models/network_node.dart';
+import '../models/registration_config.dart';
 import '../services/account_cache.dart';
 import '../services/auth_service.dart';
 import '../services/session_storage.dart';
@@ -99,7 +100,39 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
-  Future<bool> login({required String email, required String password}) async {
+  Future<RegistrationConfig> getRegistrationConfig() =>
+      _service.getRegistrationConfig();
+
+  Future<RegistrationCaptcha> getRegistrationCaptcha() =>
+      _service.getRegistrationCaptcha();
+
+  Future<void> sendRegistrationEmailCode({
+    required String email,
+    String captchaToken = '',
+    String captchaAnswer = '',
+  }) =>
+      _service.sendRegistrationEmailCode(
+        email: email,
+        captchaToken: captchaToken,
+        captchaAnswer: captchaAnswer,
+      );
+
+  Future<bool> register(RegistrationInput input) => _authenticate(
+        email: input.email,
+        request: () => _service.register(input),
+        isRegistration: true,
+      );
+
+  Future<bool> login({required String email, required String password}) =>
+      _authenticate(
+          email: email,
+          request: () => _service.login(email: email, password: password));
+
+  Future<bool> _authenticate({
+    required String email,
+    required Future<LoginResult> Function() request,
+    bool isRegistration = false,
+  }) async {
     if (_status == AuthStatus.signingIn) return false;
 
     _status = AuthStatus.signingIn;
@@ -107,7 +140,7 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final result = await _service.login(email: email, password: password);
+      final result = await request();
       final normalizedEmail = email.trim();
       await _cache.clear();
       await _storage.save(token: result.token, email: normalizedEmail);
@@ -128,7 +161,8 @@ class AuthProvider with ChangeNotifier {
       } catch (_) {}
       _clearMemorySession();
       _status = AuthStatus.signedOut;
-      _error = '无法安全保存登录信息，请稍后重试';
+      _error =
+          isRegistration ? '账号可能已创建，但无法安全保存登录信息，请返回登录' : '无法安全保存登录信息，请稍后重试';
       notifyListeners();
       return false;
     }

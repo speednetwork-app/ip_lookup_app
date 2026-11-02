@@ -27,17 +27,17 @@ class TrafficTrendCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 Icon(Icons.bar_chart_rounded, size: 21, color: scheme.primary),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    '流量趋势',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
-                  ),
+                Text(
+                  '流量趋势',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                 ),
                 if (loading)
                   const Padding(
@@ -95,13 +95,14 @@ class TrafficTrendCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 12),
-              Row(
+              Wrap(
+                spacing: 16,
+                runSpacing: 8,
                 children: [
                   _Legend(
                     color: scheme.primary,
                     label: '上传 ${_bytes(trend!.uploadBytes)}',
                   ),
-                  const SizedBox(width: 16),
                   _Legend(
                     color: scheme.primary.withValues(alpha: 0.38),
                     label: '下载 ${_bytes(trend!.downloadBytes)}',
@@ -128,12 +129,14 @@ class TrafficTrendCard extends StatelessWidget {
               const SizedBox(height: 8),
               _DateLabels(daily: trend!.daily),
               const SizedBox(height: 14),
-              Row(
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   Icon(Icons.today_outlined,
                       size: 16, color: scheme.onSurfaceVariant),
-                  const SizedBox(width: 5),
-                  Expanded(child: Text('今日 ${_bytes(trend!.todayBytes)}')),
+                  Text('今日 ${_bytes(trend!.todayBytes)}'),
                   Text(
                     _updatedText(trend!.updatedAt),
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -158,26 +161,22 @@ class _Legend extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Flexible(
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 9,
-            height: 9,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 9,
+          height: 9,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 5),
+        Flexible(
+          child: Text(
+            label,
+            style: Theme.of(context).textTheme.labelMedium,
           ),
-          const SizedBox(width: 5),
-          Flexible(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.labelMedium,
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

@@ -3,11 +3,25 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ip_lookup_app/main.dart';
 import 'package:ip_lookup_app/providers/auth_provider.dart';
 import 'package:ip_lookup_app/services/session_storage.dart';
+import 'package:ip_lookup_app/widgets/app_brand_mark.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
+  });
+
+  testWidgets('home uses a smaller transparent brand mark', (tester) async {
+    await tester.pumpWidget(_testApp());
+    await tester.pumpAndSettle();
+    final mark = tester.widget<AppBrandMark>(find.byType(AppBrandMark));
+    expect(mark.width, 48);
+    expect(mark.height, 40);
+    final image = tester.widget<Image>(find.descendant(
+        of: find.byType(AppBrandMark), matching: find.byType(Image)));
+    expect((image.image as AssetImage).assetName,
+        'assets/branding/pikayun_brand_mark.png');
+    expect(image.fit, BoxFit.contain);
   });
 
   testWidgets('does not query public IP automatically on launch',
@@ -16,9 +30,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('皮卡云'), findsOneWidget);
-    expect(find.text('网络防护未开启'), findsOneWidget);
+    expect(find.textContaining('不支持 VPN'), findsWidgets);
     expect(find.text('登录后开启安全连接'), findsOneWidget);
-    expect(find.text('智能线路'), findsOneWidget);
+    expect(find.text('当前线路'), findsOneWidget);
+    expect(find.text('尚未检测'), findsOneWidget);
     expect(find.text('线路'), findsWidgets);
     await tester.tap(find.text('IP 检测').last);
     await tester.pumpAndSettle();
@@ -36,9 +51,9 @@ void main() {
     await tester.pumpWidget(_testApp());
     await tester.pumpAndSettle();
 
-    expect(find.text('网络防护未开启'), findsOneWidget);
+    expect(find.textContaining('不支持 VPN'), findsWidgets);
     expect(find.text('登录后开启安全连接'), findsOneWidget);
-    expect(find.text('智能线路'), findsOneWidget);
+    expect(find.text('当前线路'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -80,8 +95,8 @@ void main() {
     await tester.tap(find.text('我的'));
     await tester.pumpAndSettle();
 
-    expect(find.text('登录已有账号'), findsOneWidget);
-    expect(find.textContaining('IP 查询功能无需登录'), findsOneWidget);
+    expect(find.text('登录皮卡云'), findsOneWidget);
+    expect(find.textContaining('IP 查询无需登录'), findsOneWidget);
     expect(find.textContaining('密码不会保存在本机'), findsOneWidget);
     expect(find.textContaining('登录凭证安全存储在 iOS 钥匙串中'), findsOneWidget);
     expect(find.text('登录'), findsOneWidget);
@@ -90,7 +105,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('注册'), findsOneWidget);
-    expect(find.textContaining('购买入口'), findsOneWidget);
+    expect(find.textContaining('购买入口'), findsNothing);
   });
 
   testWidgets('shows complete in-app privacy disclosure', (tester) async {

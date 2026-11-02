@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/pikayun_theme.dart';
 
 class AppPageTitle extends StatelessWidget {
   const AppPageTitle({
@@ -18,12 +19,16 @@ class AppPageTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final iconColor = brand ? Colors.white : scheme.primary;
+    final iconColor =
+        brand ? context.pikayunColors.onBrandSurface : scheme.primary;
     final iconBackground = brand
         ? LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [scheme.primary, const Color(0xFF24A7D8)],
+            colors: [
+              context.pikayunColors.brandSurface,
+              context.pikayunColors.brandSurface
+            ],
           )
         : LinearGradient(
             colors: [scheme.primaryContainer, scheme.primaryContainer],
@@ -32,27 +37,28 @@ class AppPageTitle extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        ExcludeSemantics(
-          child: Container(
-            width: brand ? 38 : 34,
-            height: brand ? 38 : 34,
-            decoration: BoxDecoration(
-              gradient: iconBackground,
-              borderRadius: BorderRadius.circular(brand ? 12 : 11),
-              boxShadow: brand
-                  ? [
-                      BoxShadow(
-                        color: scheme.primary.withValues(alpha: .2),
-                        blurRadius: 12,
-                        offset: const Offset(0, 5),
-                      ),
-                    ]
-                  : null,
+        if (brand)
+          ExcludeSemantics(
+            child: Container(
+              width: brand ? 38 : 34,
+              height: brand ? 38 : 34,
+              decoration: BoxDecoration(
+                gradient: iconBackground,
+                borderRadius: BorderRadius.circular(brand ? 12 : 11),
+                boxShadow: brand
+                    ? [
+                        BoxShadow(
+                          color: scheme.primary.withValues(alpha: .2),
+                          blurRadius: 12,
+                          offset: const Offset(0, 5),
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Icon(icon, color: iconColor, size: brand ? 22 : 19),
             ),
-            child: Icon(icon, color: iconColor, size: brand ? 22 : 19),
           ),
-        ),
-        const SizedBox(width: 11),
+        if (brand) const SizedBox(width: 11),
         Flexible(
           child: Column(
             mainAxisSize: MainAxisSize.min,

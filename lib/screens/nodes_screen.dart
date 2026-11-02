@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../models/network_node.dart';
 import '../providers/auth_provider.dart';
+import '../theme/pikayun_theme.dart';
 import '../widgets/app_backdrop.dart';
 import '../widgets/app_page_title.dart';
 
@@ -33,74 +34,92 @@ class _NodesScreenState extends State<NodesScreen> {
       appBar: AppBar(
         title: const AppPageTitle(
           title: '线路',
-          subtitle: '查看套餐当前可用线路',
+          subtitle: '选择当前可用线路',
           icon: Icons.alt_route_rounded,
         ),
+        actions: [
+          Consumer<AuthProvider>(
+            builder: (context, auth, _) => IconButton(
+              tooltip: '刷新线路',
+              onPressed: !auth.isSignedIn || auth.nodesLoading
+                  ? null
+                  : auth.refreshNetworkNodes,
+              icon: auth.nodesLoading
+                  ? const SizedBox.square(
+                      dimension: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.refresh_rounded),
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: AppBackdrop(
         child: Consumer<AuthProvider>(
           builder: (context, auth, _) {
-          if (!auth.isSignedIn) {
-            return _SignedOut(onOpenAccount: widget.onOpenAccount);
-          }
-
-          final nodes = [...auth.networkNodes]..sort(_compareNodes);
-          final onlineCount = nodes.where((node) => node.isOnline).length;
-          final onlineNodes = nodes.where((node) => node.isOnline).toList();
-          final recommendedId =
-              onlineNodes.isEmpty ? null : onlineNodes.first.id;
-          return RefreshIndicator.adaptive(
-            onRefresh: auth.refreshNetworkNodes,
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-              children: [
-                Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 720),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _NodesHeader(
-                          onlineCount: onlineCount,
-                          totalCount: nodes.length,
-                          loading: auth.nodesLoading,
-                          onRefresh: auth.refreshNetworkNodes,
-                        ),
-                        const SizedBox(height: 12),
-                        if (auth.nodesError.isNotEmpty)
-                          _MessageCard(
-                            icon: Icons.error_outline,
-                            text: auth.nodesError,
-                            color: Theme.of(context).colorScheme.errorContainer,
-                          )
-                        else if (!auth.nodesLoading &&
-                            auth.networkNodes.isEmpty)
-                          const _MessageCard(
-                            icon: Icons.route_outlined,
-                            text: '暂时没有可用线路，下拉即可重新加载。',
-                          )
-                        else
-                          ...nodes.map(
-                            (node) => Padding(
-                              padding: const EdgeInsets.only(bottom: 10),
-                              child: _NodeTile(
-                                node: node,
-                                recommended: node.id == recommendedId,
-                                selected: node.id == auth.selectedNetworkNodeId,
-                                onSelected: () => auth.selectNetworkNode(node),
-                              ),
-                            ),
+            if (!auth.isSignedIn) {
+              return _SignedOut(onOpenAccount: widget.onOpenAccount);
+            }
+            final nodes = [...auth.networkNodes]..sort(_compareNodes);
+            final onlineNodes = nodes.where((node) => node.isOnline).toList();
+            final recommendedId =
+                onlineNodes.isEmpty ? null : onlineNodes.first.id;
+            final visibleNodes =
+                auth.nodesError.isEmpty ? nodes : <NetworkNode>[];
+            return Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 720),
+                child: RefreshIndicator.adaptive(
+                  onRefresh: auth.refreshNetworkNodes,
+                  child: ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                    itemCount: visibleNodes.length + 2,
+                    itemBuilder: (context, index) {
+                      if (index == 0) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _NodesHeader(
+                            onlineCount: onlineNodes.length,
+                            totalCount: nodes.length,
                           ),
-                        const SizedBox(height: 8),
-                        const _DataNotice(),
-                      ],
-                    ),
+                        );
+                      }
+                      if (index <= visibleNodes.length) {
+                        final node = visibleNodes[index - 1];
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: _NodeTile(
+                            node: node,
+                            recommended: node.id == recommendedId,
+                            selected: node.id == auth.selectedNetworkNodeId,
+                            onSelected: () => auth.selectNetworkNode(node),
+                          ),
+                        );
+                      }
+                      if (auth.nodesError.isNotEmpty) {
+                        return _MessageCard(
+                          icon: Icons.error_outline,
+                          text: auth.nodesError,
+                          color: Theme.of(context).colorScheme.errorContainer,
+                        );
+                      }
+                      if (!auth.nodesLoading && nodes.isEmpty) {
+                        return const _MessageCard(
+                          icon: Icons.route_outlined,
+                          text: '暂时没有可用线路，下拉即可重新加载。',
+                        );
+                      }
+                      return const Padding(
+                        padding: EdgeInsets.only(top: 8),
+                        child: _DataNotice(),
+                      );
+                    },
                   ),
                 ),
-              ],
-            ),
-          );
+              ),
+            );
           },
         ),
       ),
@@ -147,80 +166,26 @@ class _NodesScreenState extends State<NodesScreen> {
 }
 
 class _NodesHeader extends StatelessWidget {
-  const _NodesHeader({
-    required this.onlineCount,
-    required this.totalCount,
-    required this.loading,
-    required this.onRefresh,
-  });
-
+  const _NodesHeader({required this.onlineCount, required this.totalCount});
   final int onlineCount;
   final int totalCount;
-  final bool loading;
-  final VoidCallback onRefresh;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Row(
+    final colors = context.pikayunColors;
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Text(
-                    '选择线路',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  if (totalCount > 0) ...[
-                    const SizedBox(width: 9),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 9,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: scheme.primaryContainer,
-                        borderRadius: BorderRadius.circular(99),
-                      ),
-                      child: Text(
-                        '$onlineCount 条在线',
-                        style: TextStyle(
-                          color: scheme.onPrimaryContainer,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '已按在线状态和当前负载智能排序',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: scheme.onSurfaceVariant,
-                    ),
-              ),
-            ],
-          ),
-        ),
-        if (loading)
-          const Padding(
-            padding: EdgeInsets.all(12),
-            child: SizedBox.square(
-              dimension: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          )
-        else
-          IconButton.filledTonal(
-            tooltip: '刷新线路',
-            onPressed: onRefresh,
-            icon: const Icon(Icons.refresh),
-          ),
+        _MetaChip(
+            label: '全部 $totalCount',
+            foreground: scheme.onPrimaryContainer,
+            background: scheme.primaryContainer),
+        _MetaChip(
+            label: '在线 $onlineCount',
+            foreground: colors.success,
+            background: colors.successContainer),
       ],
     );
   }
@@ -233,7 +198,6 @@ class _NodeTile extends StatelessWidget {
     required this.selected,
     required this.onSelected,
   });
-
   final NetworkNode node;
   final bool recommended;
   final bool selected;
@@ -242,200 +206,204 @@ class _NodeTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      decoration: BoxDecoration(
-        color: scheme.surface,
-        borderRadius: BorderRadius.circular(17),
-        border: Border.all(
-          color: recommended
-              ? scheme.primary.withValues(alpha: 0.55)
-              : scheme.outlineVariant,
-          width: recommended ? 1.3 : 1,
-        ),
-      ),
+    final colors = context.pikayunColors;
+    final available = node.isOnline && node.protocol == 'VLESS';
+    final status = switch (node.availability) {
+      NodeAvailability.online => '在线',
+      NodeAvailability.heartbeat => '仅心跳',
+      NodeAvailability.offline => '离线',
+    };
+    final statusColor = switch (node.availability) {
+      NodeAvailability.online => colors.success,
+      NodeAvailability.heartbeat => colors.warning,
+      NodeAvailability.offline => scheme.error,
+    };
+    final load = switch (node.loadLevel) {
+      'relaxed' => '流畅',
+      'moderate' => '较忙',
+      'busy' => '繁忙',
+      _ => '负载未知',
+    };
+    final loadColor = switch (node.loadLevel) {
+      'relaxed' => colors.success,
+      'moderate' => colors.warning,
+      'busy' => scheme.error,
+      _ => scheme.onSurfaceVariant,
+    };
+    final rate = node.rate == node.rate.roundToDouble()
+        ? node.rate.toInt().toString()
+        : node.rate.toStringAsFixed(1);
+    return Semantics(
+      button: available,
+      selected: selected,
+      label:
+          '${node.name}，$status，${node.protocol}，倍率 $rate，$load，延迟未测，在线人数暂无数据',
       child: Material(
-        color: Colors.transparent,
+        color: selected ? scheme.primaryContainer : scheme.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: selected
+              ? BorderSide(color: scheme.primary.withValues(alpha: .4))
+              : BorderSide.none,
+        ),
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
-          borderRadius: BorderRadius.circular(17),
-          onTap: node.isOnline && node.protocol == 'VLESS' ? onSelected : null,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 13, 12, 13),
-            child: Row(
-              children: [
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color:
-                        _statusColor(node.availability).withValues(alpha: 0.11),
-                    borderRadius: BorderRadius.circular(14),
+          onTap: available ? onSelected : null,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 66),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 28,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? colors.brandSurface.withValues(alpha: .55)
+                          : scheme.surfaceContainerLow,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(Icons.public,
+                        size: 18, color: scheme.onSurfaceVariant),
                   ),
-                  child: Icon(
-                    Icons.alt_route_rounded,
-                    color: _statusColor(node.availability),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Opacity(
-                    opacity: node.isOnline ? 1 : 0.58,
+                  const SizedBox(width: 8),
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            if (selected) ...[
+                              Icon(Icons.check_circle,
+                                  size: 14, color: scheme.primary),
+                              const SizedBox(width: 4),
+                            ],
                             Expanded(
                               child: Text(
                                 node.name,
-                                maxLines: 1,
+                                maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                ),
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .titleSmall
+                                    ?.copyWith(
+                                      color: node.isOnline
+                                          ? scheme.onSurface
+                                          : scheme.onSurfaceVariant,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                               ),
                             ),
-                            if (recommended)
-                              _MetaChip(
-                                label: '推荐',
-                                foreground: scheme.primary,
-                                background: scheme.primaryContainer,
-                              ),
-                            if (selected) ...[
-                              const SizedBox(width: 6),
-                              _MetaChip(
-                                label: '已选择',
-                                foreground: scheme.primary,
-                                background: scheme.primaryContainer,
-                              ),
-                            ],
+                            const SizedBox(width: 8),
+                            Tooltip(
+                              message: '暂未提供延迟测量数据',
+                              child: Text('未测',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(
+                                          color: scheme.onSurfaceVariant)),
+                            ),
                           ],
                         ),
-                        const SizedBox(height: 7),
+                        const SizedBox(height: 4),
                         Wrap(
-                          spacing: 6,
+                          spacing: 8,
                           runSpacing: 5,
+                          crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
-                            _MetaChip(
-                              label: _availabilityText(node.availability),
-                              foreground: _statusColor(node.availability),
-                              background: _statusColor(node.availability)
-                                  .withValues(alpha: 0.1),
-                              showDot: true,
+                            Text(status,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelSmall
+                                    ?.copyWith(
+                                        color: statusColor,
+                                        fontWeight: FontWeight.w600)),
+                            Text('${node.protocol} · ${rate}x',
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .labelSmall
+                                    ?.copyWith(color: scheme.onSurfaceVariant)),
+                            Tooltip(
+                              message: '节点在线人数尚未提供',
+                              child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.people_outline,
+                                        size: 13,
+                                        color: scheme.onSurfaceVariant),
+                                    const SizedBox(width: 3),
+                                    Text('暂无数据',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .labelSmall
+                                            ?.copyWith(
+                                                color:
+                                                    scheme.onSurfaceVariant)),
+                                  ]),
                             ),
-                            _MetaChip(
-                              label: _loadText(node.loadLevel),
-                              foreground: scheme.onSurfaceVariant,
-                              background: scheme.surfaceContainerHighest,
+                            Tooltip(
+                              message:
+                                  node.loadEstimated ? '负载由服务端估算' : '服务端负载状态',
+                              child: Text(load,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .labelSmall
+                                      ?.copyWith(
+                                          color: loadColor,
+                                          fontWeight: FontWeight.w600)),
                             ),
-                            _MetaChip(
-                              label:
-                                  '${node.protocol} · ${_formatRate(node.rate)}x',
-                              foreground: scheme.onSurfaceVariant,
-                              background: scheme.surfaceContainerHighest,
-                            ),
+                            if (selected)
+                              Text('已选',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .labelSmall
+                                      ?.copyWith(
+                                          color: scheme.primary,
+                                          fontWeight: FontWeight.w700))
+                            else if (recommended)
+                              Text('推荐',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .labelSmall
+                                      ?.copyWith(color: scheme.primary)),
                           ],
                         ),
                       ],
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
       ),
     );
   }
-
-  Color _statusColor(NodeAvailability availability) {
-    switch (availability) {
-      case NodeAvailability.online:
-        return const Color(0xFF0A9F7F);
-      case NodeAvailability.heartbeat:
-        return const Color(0xFFAD7917);
-      case NodeAvailability.offline:
-        return const Color(0xFFC04A5D);
-    }
-  }
-
-  String _availabilityText(NodeAvailability availability) {
-    switch (availability) {
-      case NodeAvailability.online:
-        return '在线';
-      case NodeAvailability.heartbeat:
-        return '仅心跳';
-      case NodeAvailability.offline:
-        return '离线';
-    }
-  }
-
-  String _loadText(String load) {
-    switch (load) {
-      case 'relaxed':
-        return '流畅';
-      case 'moderate':
-        return '较忙';
-      case 'busy':
-        return '繁忙';
-      default:
-        return '负载待测';
-    }
-  }
 }
 
 class _MetaChip extends StatelessWidget {
-  const _MetaChip({
-    required this.label,
-    required this.foreground,
-    required this.background,
-    this.showDot = false,
-  });
-
+  const _MetaChip(
+      {required this.label,
+      required this.foreground,
+      required this.background});
   final String label;
   final Color foreground;
   final Color background;
-  final bool showDot;
-
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(99),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (showDot) ...[
-            Container(
-              width: 6,
-              height: 6,
-              decoration:
-                  BoxDecoration(color: foreground, shape: BoxShape.circle),
-            ),
-            const SizedBox(width: 5),
-          ],
-          Text(
-            label,
-            style: TextStyle(
-              color: foreground,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-String _formatRate(double rate) {
-  return rate == rate.roundToDouble()
-      ? rate.toStringAsFixed(0)
-      : rate.toStringAsFixed(1);
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+            color: background, borderRadius: BorderRadius.circular(99)),
+        child: Text(label,
+            style: Theme.of(context)
+                .textTheme
+                .labelMedium
+                ?.copyWith(color: foreground, fontWeight: FontWeight.w600)),
+      );
 }
 
 class _SignedOut extends StatelessWidget {

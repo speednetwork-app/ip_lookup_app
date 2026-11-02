@@ -7,9 +7,12 @@ import '../widgets/app_backdrop.dart';
 import '../widgets/app_page_title.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/ip_card.dart';
+import '../widgets/app_icon_tile.dart';
 
 class HistoryScreen extends StatelessWidget {
-  const HistoryScreen({super.key});
+  const HistoryScreen({super.key, this.onOpenIp});
+
+  final VoidCallback? onOpenIp;
 
   @override
   Widget build(BuildContext context) {
@@ -22,54 +25,63 @@ class HistoryScreen extends StatelessWidget {
         ),
         actions: [
           Consumer<HistoryProvider>(
-            builder: (context, history, _) => IconButton(
-              tooltip: '清空历史',
-              icon: const Icon(Icons.delete_sweep_outlined),
-              onPressed: history.entries.isEmpty
-                  ? null
-                  : () => _confirmClear(context, history),
-            ),
+            builder: (context, history, _) => history.entries.isEmpty
+                ? const SizedBox.shrink()
+                : IconButton(
+                    tooltip: '清空历史',
+                    icon: const Icon(Icons.delete_sweep_outlined),
+                    onPressed: history.entries.isEmpty
+                        ? null
+                        : () => _confirmClear(context, history),
+                  ),
           ),
         ],
       ),
       body: AppBackdrop(
         child: Consumer<HistoryProvider>(
           builder: (context, history, _) {
-          if (!history.isLoaded) {
-            return const Center(child: CircularProgressIndicator());
-          }
+            if (!history.isLoaded) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-          if (history.isEmpty) {
-            return const EmptyState(
-              icon: Icons.history_toggle_off,
-              title: '还没有查询记录',
-              message: '查询过的 IP 会自动保存在这里，仅存于本设备',
-            );
-          }
-
-          return ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: history.entries.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 8),
-            itemBuilder: (context, i) {
-              final entry = history.entries[i];
-              return Dismissible(
-                key: ValueKey(entry.info.ip),
-                direction: DismissDirection.endToStart,
-                background: Container(
-                  alignment: Alignment.centerRight,
-                  padding: const EdgeInsets.only(right: 20),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.errorContainer,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(Icons.delete_outline),
-                ),
-                onDismissed: (_) => history.remove(entry.info.ip),
-                child: _HistoryTile(entry: entry),
+            if (history.isEmpty) {
+              return EmptyState(
+                icon: Icons.history_toggle_off,
+                title: '还没有查询记录',
+                message: '查询过的 IP 会自动保存在这里，仅存于本设备',
+                action: onOpenIp == null
+                    ? null
+                    : FilledButton.icon(
+                        onPressed: onOpenIp,
+                        icon: const Icon(Icons.public),
+                        label: const Text('立即检测 IP'),
+                      ),
               );
-            },
-          );
+            }
+
+            return ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: history.entries.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemBuilder: (context, i) {
+                final entry = history.entries[i];
+                return Dismissible(
+                  key: ValueKey(entry.info.ip),
+                  direction: DismissDirection.endToStart,
+                  background: Container(
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 20),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.errorContainer,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.delete_outline),
+                  ),
+                  onDismissed: (_) => history.remove(entry.info.ip),
+                  child: _HistoryTile(entry: entry),
+                );
+              },
+            );
           },
         ),
       ),
@@ -108,29 +120,43 @@ class _HistoryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      tileColor: Theme.of(context).colorScheme.surfaceContainerLow,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      leading: const Icon(Icons.place_outlined),
-      title: Text(entry.info.ip),
-      subtitle: Text(entry.info.location),
-      trailing: Text(
-        _relativeTime(entry.queriedAt),
-        style: TextStyle(
-          fontSize: 12,
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
+    return Card(
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        tileColor: Theme.of(context).colorScheme.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(17)),
+        leading: const AppIconTile(icon: Icons.public, size: 40),
+        title: Text(entry.info.ip,
+            style: Theme.of(context)
+                .textTheme
+                .titleSmall
+                ?.copyWith(fontFeatures: const [FontFeature.tabularFigures()])),
+        subtitle: Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(entry.info.location,
+                  style: Theme.of(context).textTheme.bodySmall),
+              const SizedBox(height: 3),
+              Text(_relativeTime(entry.queriedAt),
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            ],
+          ),
         ),
-      ),
-      onTap: () => showModalBottomSheet<void>(
-        context: context,
-        isScrollControlled: true,
-        builder: (_) => DraggableScrollableSheet(
-          expand: false,
-          initialChildSize: 0.8,
-          builder: (_, controller) => ListView(
-            controller: controller,
-            padding: const EdgeInsets.all(16),
-            children: [IpCard(ipInfo: entry.info)],
+        trailing: const Icon(Icons.chevron_right, size: 20),
+        onTap: () => showModalBottomSheet<void>(
+          context: context,
+          isScrollControlled: true,
+          builder: (_) => DraggableScrollableSheet(
+            expand: false,
+            initialChildSize: 0.8,
+            builder: (_, controller) => ListView(
+              controller: controller,
+              padding: const EdgeInsets.all(16),
+              children: [IpCard(ipInfo: entry.info)],
+            ),
           ),
         ),
       ),
