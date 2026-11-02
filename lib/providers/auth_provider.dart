@@ -17,6 +17,10 @@ import '../services/vpn_service.dart';
 
 enum AuthStatus { initializing, signedOut, signingIn, signedIn }
 
+class _VpnCancelled implements Exception {
+  const _VpnCancelled();
+}
+
 class AuthProvider with ChangeNotifier {
   AuthProvider({
     AuthService? service,
@@ -52,6 +56,11 @@ class AuthProvider with ChangeNotifier {
   bool _vpnBusy = false;
   String _vpnError = '';
   Timer? _vpnStatusTimer;
+  bool _vpnCertificateUnverified = false;
+  bool get vpnCertificateUnverified => _vpnCertificateUnverified;
+  // The view owns presentation; the provider never connects unverified HY2
+  // without a current user's affirmative answer. Not persisted across sessions.
+  Future<bool> Function(String nodeName)? confirmInsecureHy2;
 
   AuthStatus get status => _status;
   String get email => _email;
@@ -276,6 +285,11 @@ class AuthProvider with ChangeNotifier {
   Future<void> refreshVpnStatus({bool notify = true}) async {
     try {
       final next = await _vpnService.status();
+      final unverified = (next == VpnConnectionStatus.connected ||
+              next == VpnConnectionStatus.connecting ||
+              next == VpnConnectionStatus.reasserting)
+          ? await _vpnService.certificateVerificationSkipped()
+          : false;
       if (next == VpnConnectionStatus.disconnected &&
           (_vpnStatus == VpnConnectionStatus.connecting ||
               _vpnStatus == VpnConnectionStatus.reasserting)) {
@@ -284,11 +298,12 @@ class AuthProvider with ChangeNotifier {
           _vpnError = nativeError;
         }
       }
-      if (_vpnStatus == next) {
+      if (_vpnStatus == next && _vpnCertificateUnverified == unverified) {
         if (notify && _vpnError.isNotEmpty) notifyListeners();
         return;
       }
       _vpnStatus = next;
+      _vpnCertificateUnverified = unverified;
       if (notify) notifyListeners();
     } catch (_) {
       if (_vpnStatus != VpnConnectionStatus.invalid) {
@@ -347,6 +362,8 @@ class AuthProvider with ChangeNotifier {
       }
       await Future<void>.delayed(const Duration(milliseconds: 350));
       await refreshVpnStatus(notify: false);
+    } on _VpnCancelled {
+      _vpnError = '';
     } on AuthException catch (error) {
       _vpnError = error.message;
     } on PlatformException catch (error) {
@@ -376,6 +393,15 @@ class AuthProvider with ChangeNotifier {
         node.protocol.toUpperCase() == 'VLESS' ? 'vless' : 'hysteria2';
     if (config.nodeId != nodeId || config.protocol != expected) {
       throw const AuthException('服务器返回的线路配置不匹配');
+    }
+    if (config.requiresInsecureConsent) {
+      final confirm = confirmInsecureHy2;
+      if (confirm == null) throw const AuthException('HY2 兼容连接需要确认服务器证书风险');
+      if (!await confirm(node.name)) throw const _VpnCancelled();
+      if (!isSignedIn || _token != token) {
+        throw const AuthException('登录状态已变更，请重试');
+      }
+      return config.approveInsecureCompatibility();
     }
     return config;
   }
@@ -410,6 +436,8 @@ class AuthProvider with ChangeNotifier {
       notifyListeners();
       await _vpnService.connect(config);
       await refreshVpnStatus(notify: false);
+    } on _VpnCancelled {
+      _vpnError = '';
     } on AuthException catch (error) {
       _vpnError = error.message;
     } on PlatformException catch (error) {
@@ -537,6 +565,7 @@ class AuthProvider with ChangeNotifier {
     _nodesError = '';
     _selectedNetworkNodeId = null;
     _vpnStatus = VpnConnectionStatus.disconnected;
+    _vpnCertificateUnverified = false;
     _vpnBusy = false;
     _vpnError = '';
     _selectedTrafficRange = TrafficRange.sevenDays;

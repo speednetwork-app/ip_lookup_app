@@ -17,6 +17,8 @@ git clone --filter=blob:none "$LIBXRAY_REPOSITORY" "$WORK_DIR/libXray"
 git -C "$WORK_DIR/libXray" checkout --detach "$LIBXRAY_COMMIT"
 test "$(git -C "$WORK_DIR/libXray" rev-parse HEAD)" = "$LIBXRAY_COMMIT"
 
+bash "$PROJECT_ROOT/tool/prepare_vpn_core.sh" "$WORK_DIR/libXray"
+
 python3 "$WORK_DIR/libXray/build/main.py" apple go
 test -f "$WORK_DIR/libXray/LibXray.xcframework/Info.plist"
 

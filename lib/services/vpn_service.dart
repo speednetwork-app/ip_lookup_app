@@ -21,6 +21,7 @@ abstract class VpnService {
   Future<void> connect(MobileVpnConfig config);
 
   Future<void> disconnect();
+  Future<bool> certificateVerificationSkipped();
 }
 
 class MethodChannelVpnService implements VpnService {
@@ -64,5 +65,13 @@ class MethodChannelVpnService implements VpnService {
   Future<void> disconnect() async {
     if (!_isSupported) return;
     await _channel.invokeMethod<void>('disconnect');
+  }
+
+  @override
+  Future<bool> certificateVerificationSkipped() async {
+    if (!_isSupported) return false;
+    return await _channel
+            .invokeMethod<bool>('certificateVerificationSkipped') ??
+        false;
   }
 }

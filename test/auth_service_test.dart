@@ -234,6 +234,7 @@ void main() {
     expect(request.data, {
       'node_id': 522,
       'platform': 'ios',
+      'capabilities': ['hy2-insecure-v1'],
       'app_version': '1.5.0+10',
     });
     expect(config.schemaVersion, 1);

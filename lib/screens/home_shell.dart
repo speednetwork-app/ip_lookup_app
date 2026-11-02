@@ -20,6 +20,32 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
+  late final AuthProvider _auth;
+
+  Future<bool> _confirmInsecureHy2(String nodeName) async {
+    if (!mounted) return false;
+    return await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog.adaptive(
+            title: const Text('HY2 证书兼容连接'),
+            content: SingleChildScrollView(
+              child: Text('线路：$nodeName\n\n'
+                  '此线路要求跳过服务器证书校验。流量仍会加密，但无法验证服务器身份，存在服务器被冒充或中间人攻击的风险。\n\n'
+                  '仅在你信任该线路并了解上述风险时继续。VLESS 和其他已验证线路不受影响。'),
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('取消')),
+              TextButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('了解风险，继续')),
+            ],
+          ),
+        ) ==
+        true;
+  }
 
   void _selectTab(int index) {
     setState(() => _index = index);
@@ -37,8 +63,16 @@ class _HomeShellState extends State<HomeShell> {
     final history = context.read<HistoryProvider>();
     Future.microtask(history.load);
     final auth = context.read<AuthProvider>();
+    _auth = auth;
+    auth.confirmInsecureHy2 = _confirmInsecureHy2;
     Future.microtask(auth.initialize);
     Future.microtask(auth.initializeVpn);
+  }
+
+  @override
+  void dispose() {
+    _auth.confirmInsecureHy2 = null;
+    super.dispose();
   }
 
   @override

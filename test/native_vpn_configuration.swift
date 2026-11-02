@@ -45,6 +45,18 @@ struct NativeVpnConfigurationTests {
     pinned["pinned_peer_cert_sha256"] = String(repeating: "a", count: 64)
     let tls = try TunnelConfiguration(values: pinned).makeProxyOutbound()["streamSettings"] as! [String: Any]
     precondition((tls["tlsSettings"] as! [String: Any])["pinnedPeerCertSha256"] as? String == String(repeating: "a", count: 64))
+    var compatibility = base
+    compatibility["allow_insecure"] = true
+    compatibility["hy2_insecure_consent"] = true
+    let compatConfig = try TunnelConfiguration(values: compatibility)
+    precondition(compatConfig.usesHy2Compatibility)
+    do {
+      _ = try compatConfig.makeXrayJSON(tunnelFileDescriptor: 12)
+      fatalError("Compatibility requires an authenticated internal bridge")
+    } catch { /* expected */ }
+    let compatJSON = try compatConfig.makeXrayJSON(tunnelFileDescriptor: 12,
+        compatibilityEndpoint: ["port": 12345, "user": "fixture", "password": "fixture-only"])
+    precondition(compatJSON.contains("socks"))
     var vless = base
     vless["protocol"] = "vless"; vless["transport"] = "raw"; vless["security"] = "reality"
     vless["user_id"] = "11111111-2222-4333-8444-555555555555"

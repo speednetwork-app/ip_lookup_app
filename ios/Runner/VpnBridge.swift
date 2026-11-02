@@ -30,6 +30,17 @@ final class VpnBridge: NSObject {
         UserDefaults(suiteName: Self.appGroupIdentifier)?
           .string(forKey: Self.lastErrorKey)
       )
+    case "certificateVerificationSkipped":
+      loadManager { response in
+        switch response {
+        case .failure(let error): result(Self.flutterError(error))
+        case .success(let manager):
+          let configuration = (manager?.protocolConfiguration as? NETunnelProviderProtocol)?.providerConfiguration
+          result(configuration?["protocol"] as? String == "hysteria2" &&
+                 configuration?["allow_insecure"] as? Bool == true &&
+                 (configuration?["pinned_peer_cert_sha256"] as? String ?? "").isEmpty)
+        }
+      }
     case "connect":
       guard let configuration = call.arguments as? [String: Any] else {
         result(FlutterError(code: "invalid_configuration", message: "VPN 配置格式无效", details: nil))

@@ -227,7 +227,8 @@ class _ConnectionConsoleState extends State<_ConnectionConsole> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _SecurityStatusPill(
-                  connected: _connected, label: _securityLabel()),
+                  connected: _connected && !auth.vpnCertificateUnverified,
+                  label: _securityLabel()),
               SizedBox(height: textScale > 1.3 ? 20 : 16),
               Center(
                 child: Semantics(
@@ -376,6 +377,7 @@ class _ConnectionConsoleState extends State<_ConnectionConsole> {
   }
 
   String _securityLabel() {
+    if (_connected && auth.vpnCertificateUnverified) return 'HY2 兼容连接 · 未验证证书';
     if (_connected) return 'VPN 已连接';
     if (auth.vpnBusy) return '正在更新连接状态';
     switch (auth.vpnStatus) {
@@ -399,7 +401,7 @@ class _ConnectionConsoleState extends State<_ConnectionConsole> {
     if (!auth.isSignedIn) return '登录后开启安全连接';
     switch (auth.vpnStatus) {
       case VpnConnectionStatus.connected:
-        return '安全连接已开启';
+        return auth.vpnCertificateUnverified ? 'VPN 兼容连接已开启' : '安全连接已开启';
       case VpnConnectionStatus.connecting:
       case VpnConnectionStatus.reasserting:
         return '正在建立安全连接';
@@ -415,6 +417,7 @@ class _ConnectionConsoleState extends State<_ConnectionConsole> {
   }
 
   String _secondaryStatus() {
+    if (_active && auth.vpnCertificateUnverified) return '已跳过服务器证书校验';
     if (!auth.isSignedIn) return '前往“我的”登录账号';
     switch (auth.vpnStatus) {
       case VpnConnectionStatus.connected:

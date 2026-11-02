@@ -304,6 +304,7 @@ class AuthService {
         data: {
           'node_id': nodeId,
           'platform': 'ios',
+          'capabilities': ['hy2-insecure-v1'],
           if (appVersion != null && appVersion.trim().isNotEmpty)
             'app_version': appVersion.trim(),
         },

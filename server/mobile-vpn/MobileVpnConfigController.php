@@ -62,7 +62,8 @@ class MobileVpnConfigController extends Controller
             $pins = is_readable($pinPath) ? json_decode(file_get_contents($pinPath), true) : [];
             try {
                 $config = \App\Services\MobileHysteriaConfig::build(
-                    $server, is_array($manifest) ? $manifest : null, time(), is_array($pins) ? $pins : []
+                    $server, is_array($manifest) ? $manifest : null, time(), is_array($pins) ? $pins : [],
+                    in_array('hy2-insecure-v1', (array) $request->input('capabilities', []), true)
                 );
                 return $this->noStore($this->success($config));
             } catch (\DomainException $error) {

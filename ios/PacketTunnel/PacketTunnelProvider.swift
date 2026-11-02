@@ -44,15 +44,21 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
         }
         self.worker.async {
           do {
+            var compatibilityEndpoint: [String: Any]?
+            if configuration.usesHy2Compatibility {
+              Self.record(stage: "正在进行 HY2 兼容握手（未验证服务器证书）")
+              compatibilityEndpoint = try Self.invoke(method: "startHy2", payload: configuration.hy2CompatibilityPayload())
+            }
             Self.record(stage: "正在启动 Xray 内核")
             let xrayJSON = try configuration.makeXrayJSON(
-              tunnelFileDescriptor: fileDescriptor
+              tunnelFileDescriptor: fileDescriptor, compatibilityEndpoint: compatibilityEndpoint
             )
             try Self.invoke(method: "runXray", xrayJSON: xrayJSON)
             self.xrayRunning = true
             Self.record(stage: "VPN 已连接")
             completionHandler(nil)
           } catch {
+            try? Self.invoke(method: "stopHy2")
             Self.record(stage: "启动 Xray 内核", error: error)
             completionHandler(error)
           }
@@ -72,6 +78,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
       if self?.xrayRunning == true {
         try? Self.invoke(method: "stopXray")
       }
+      try? Self.invoke(method: "stopHy2")
       self?.xrayRunning = false
       completionHandler()
     }
@@ -129,8 +136,9 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     return nil
   }
 
-  private static func invoke(method: String, xrayJSON: String? = nil) throws {
-    var payload: [String: Any] = [:]
+  @discardableResult
+  private static func invoke(method: String, xrayJSON: String? = nil, payload: [String: Any] = [:]) throws -> [String: Any]? {
+    var payload = payload
     if let xrayJSON { payload["xrayJson"] = xrayJSON }
     let request: [String: Any] = [
       "apiVersion": 3,
@@ -143,7 +151,9 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     else { throw error("无法编码 Xray 请求") }
     defer { free(requestPointer) }
 
-    guard let responsePointer = CGoInvoke(requestPointer) else {
+    let pointer = (method == "startHy2" || method == "stopHy2")
+      ? CGoHy2Invoke(requestPointer) : CGoInvoke(requestPointer)
+    guard let responsePointer = pointer else {
       throw error("Xray 内核没有返回结果")
     }
     defer { CGoFree(responsePointer) }
@@ -157,6 +167,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
       let message = response["error"] as? String ?? "Xray 内核启动失败"
       throw error(message)
     }
+    return response["data"] as? [String: Any]
   }
 
   fileprivate static func error(_ message: String) -> NSError {

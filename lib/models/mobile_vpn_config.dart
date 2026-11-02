@@ -20,6 +20,7 @@ class MobileVpnConfig {
     required this.spiderX,
     this.password = '',
     this.allowInsecure = false,
+    this.insecureConsent = false,
     this.pinnedPeerCertSha256 = '',
     this.obfsPassword = '',
     this.serverPorts = '',
@@ -93,7 +94,10 @@ class MobileVpnConfig {
     }
     final pin = isHy2 ? _string(security, 'pinned_peer_cert_sha256') : '';
     if ((pin.isNotEmpty && !RegExp(r'^[a-fA-F0-9]{64}$').hasMatch(pin)) ||
-        (isHy2 && insecure == true && pin.isEmpty)) {
+        (isHy2 &&
+            insecure == true &&
+            pin.isEmpty &&
+            security['compatibility_mode'] != 'hy2-insecure-v1')) {
       throw const FormatException(
           'HY2 certificate verification is not configured');
     }
@@ -153,12 +157,46 @@ class MobileVpnConfig {
   final String spiderX;
   final String password;
   final bool allowInsecure;
+  final bool insecureConsent;
   final String pinnedPeerCertSha256;
   final String obfsPassword;
   final String serverPorts;
   final int hopInterval;
   final int upMbps;
   final int downMbps;
+
+  bool get requiresInsecureConsent =>
+      protocol == 'hysteria2' && allowInsecure && pinnedPeerCertSha256.isEmpty;
+
+  MobileVpnConfig approveInsecureCompatibility() => MobileVpnConfig(
+        schemaVersion: schemaVersion,
+        issuedAt: issuedAt,
+        refreshAfter: refreshAfter,
+        protocol: protocol,
+        nodeId: nodeId,
+        nodeName: nodeName,
+        address: address,
+        port: port,
+        userId: userId,
+        encryption: encryption,
+        flow: flow,
+        transportType: transportType,
+        securityType: securityType,
+        serverName: serverName,
+        publicKey: publicKey,
+        shortId: shortId,
+        fingerprint: fingerprint,
+        spiderX: spiderX,
+        password: password,
+        allowInsecure: allowInsecure,
+        pinnedPeerCertSha256: pinnedPeerCertSha256,
+        obfsPassword: obfsPassword,
+        serverPorts: serverPorts,
+        hopInterval: hopInterval,
+        upMbps: upMbps,
+        downMbps: downMbps,
+        insecureConsent: true,
+      );
 
   Map<String, Object> toPlatformMap() => {
         'schema_version': schemaVersion,
@@ -180,6 +218,7 @@ class MobileVpnConfig {
         if (protocol == 'hysteria2') ...{
           'password': password,
           'allow_insecure': allowInsecure,
+          'hy2_insecure_consent': insecureConsent,
           'pinned_peer_cert_sha256': pinnedPeerCertSha256,
           'obfs_password': obfsPassword,
           'server_ports': serverPorts,

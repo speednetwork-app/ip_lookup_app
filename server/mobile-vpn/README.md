@@ -20,9 +20,12 @@ Only the Hysteria 2 branch is new. VLESS's response and native outbound are unch
 
 Read-only verification found 39 accessible HY2 nodes, all matched existing relay
 entries. Their current server settings all explicitly allow insecure TLS, which
-the pinned Xray version has **removed**. Do not work around this by disabling core
-verification. Deployment is blocked until authoritative public certificates or
-CA-valid node settings are available. No production change has been made.
+the pinned Xray version has **removed**. The compatibility trial keeps Xray's TLS
+verification intact and uses the official Hysteria client only for these nodes.
+The API requires the explicit `hy2-insecure-v1` client capability. The app also
+requires per-connection risk consent before starting an unverified connection.
+Cancelling preserves the previous tunnel. This mode encrypts traffic but does
+not authenticate the server and is vulnerable to active interception.
 
 For self-signed certificates, place operator-verified leaf certificate SHA-256
 fingerprints in the private server file `storage/app/mobile-hy2-cert-pins.json`:
@@ -34,7 +37,8 @@ fingerprints in the private server file `storage/app/mobile-hy2-cert-pins.json`:
 Do not copy this fixture to production. Fingerprints must come from an authenticated
 management source, not an unauthenticated first-use network probe. Each entry must
 match the node's original endpoint and SNI. The API returns verification enabled
-with an exact certificate pin; absent/stale pins fail closed for insecure nodes.
+with an exact certificate pin. Without a valid pin, insecure nodes require the
+explicit compatibility capability; older clients still fail closed.
 No certificate private key is needed or sent to the app. Other clients' settings
 are unchanged. Missing TLS flags always default to normal certificate verification.
 
@@ -50,9 +54,18 @@ send the real app version, and disconnect/reconnect when selecting a different
 line during an active VPN session. Fetch/validation failure preserves the previous
 tunnel. Busy operations reject duplicate taps. Connection status still comes from iOS.
 
+The compatibility bridge uses official Hysteria sources pinned to
+`ca8fbd874fd6ca82413948de6dc5924405e103e1` and shares LibXray's single Go runtime.
+It binds authenticated SOCKS5 only on loopback, forwards TCP and UDP, and closes
+active associations on disconnect. It does not weaken VLESS or strict/pinned HY2.
+The app displays the unverified-certificate warning using the native VPN config.
+
 Validation plan: Flutter tests; standalone PHP tests; Foundation-only Swift configuration
 tests; pinned Xray loopback HY2 HTTP transfers (plain, Salamander, hopping/bandwidth)
 and VLESS config startup via `tool/check_vpn_core.sh`; cloud iOS signed build.
+The same script tests the official compatibility client against an isolated,
+self-signed loopback server, including TCP, UDP, wrong credentials, consent,
+strict certificate rejection, pin mismatch and connection cleanup.
 Real iPhone/iPad switching, public IP and background-network validation remain
 device acceptance steps. No new TestFlight upload or App Store submission is
 performed by the verification run (`upload_to_app_store=false`).

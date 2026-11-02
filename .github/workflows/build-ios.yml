@@ -47,12 +47,15 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: false
 
+      - name: Verify native VLESS and HY2 configuration and loopback transport
+        run: bash tool/check_vpn_core.sh
+
       - name: Restore LibXray Apple framework
         id: libxray-cache
         uses: actions/cache@v4
         with:
           path: ios/Frameworks/LibXray.xcframework
-          key: libxray-apple-${{ runner.os }}-${{ env.LIBXRAY_COMMIT }}-${{ hashFiles('tool/build_libxray_apple.sh') }}
+          key: libxray-apple-${{ runner.os }}-${{ env.LIBXRAY_COMMIT }}-${{ hashFiles('tool/build_libxray_apple.sh', 'tool/prepare_vpn_core.sh', 'tool/hy2bridge/**') }}
 
       - name: Build LibXray Apple framework
         if: steps.libxray-cache.outputs.cache-hit != 'true'
@@ -63,15 +66,12 @@ jobs:
           test -f ios/Frameworks/LibXray.xcframework/Info.plist
           plutil -lint ios/Frameworks/LibXray.xcframework/Info.plist
 
-      - name: Verify native VLESS and HY2 configuration and loopback transport
-        run: bash tool/check_vpn_core.sh
-
       - name: Save LibXray Apple framework
         if: steps.libxray-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: ios/Frameworks/LibXray.xcframework
-          key: libxray-apple-${{ runner.os }}-${{ env.LIBXRAY_COMMIT }}-${{ hashFiles('tool/build_libxray_apple.sh') }}
+          key: libxray-apple-${{ runner.os }}-${{ env.LIBXRAY_COMMIT }}-${{ hashFiles('tool/build_libxray_apple.sh', 'tool/prepare_vpn_core.sh', 'tool/hy2bridge/**') }}
 
       - uses: subosito/flutter-action@v2
         with:

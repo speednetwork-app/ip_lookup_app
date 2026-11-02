@@ -12,6 +12,39 @@ import 'package:ip_lookup_app/services/auth_service.dart';
 import 'package:ip_lookup_app/services/session_storage.dart';
 
 void main() {
+  for (final decision in <bool?>[null, false, true]) {
+    test('unverified HY2 switching requires affirmative consent: $decision',
+        () async {
+      final service = _FakeAuthService(overview: _overview())
+        ..compatibility = true;
+      final vpn = _FakeVpn()..current = VpnConnectionStatus.connected;
+      final provider = AuthProvider(
+          service: service,
+          vpnService: vpn,
+          storage:
+              _MemorySessionStorage(token: 'saved', email: 'test@example.com'),
+          cache: _MemoryAccountCache());
+      addTearDown(provider.dispose);
+      await provider.initialize();
+      await provider.refreshNetworkNodes();
+      await provider.refreshVpnStatus();
+      if (decision != null) provider.confirmInsecureHy2 = (_) async => decision;
+      provider.selectNetworkNode(service.nodes[1]);
+      for (var i = 0; i < 100 && provider.vpnBusy; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      expect(provider.vpnBusy, isFalse);
+      if (decision == true) {
+        expect(vpn.events, ['disconnect', 'connect:hysteria2']);
+        expect(vpn.unverified, isTrue);
+        expect(provider.vpnCertificateUnverified, isTrue);
+      } else {
+        expect(vpn.events, isEmpty);
+        expect(provider.selectedNetworkNodeId, '1');
+        expect(provider.vpnStatus, VpnConnectionStatus.connected);
+      }
+    });
+  }
   for (final failConfig in [false, true]) {
     test('switch VLESS to HY2 with config failure = $failConfig', () async {
       final service = _FakeAuthService(overview: _overview());
@@ -194,6 +227,7 @@ class _FakeAuthService extends AuthService {
   String? requestedToken;
   AuthException? configError;
   String? appVersion;
+  bool compatibility = false;
   final nodes = [
     NetworkNode.fromJson({
       'id': 1,
@@ -236,7 +270,8 @@ class _FakeAuthService extends AuthService {
         shortId: '',
         fingerprint: 'chrome',
         spiderX: '/',
-        password: nodeId == 2 ? 'fixture-password' : '');
+        password: nodeId == 2 ? 'fixture-password' : '',
+        allowInsecure: nodeId == 2 && compatibility);
   }
 
   @override
@@ -269,10 +304,13 @@ class _FakeAuthService extends AuthService {
 class _FakeVpn implements VpnService {
   VpnConnectionStatus current = VpnConnectionStatus.disconnected;
   final events = <String>[];
+  bool unverified = false;
   @override
   Future<VpnConnectionStatus> status() async => current;
   @override
   Future<String?> lastError() async => null;
+  @override
+  Future<bool> certificateVerificationSkipped() async => unverified;
   @override
   Future<void> disconnect() async {
     events.add('disconnect');
@@ -281,6 +319,10 @@ class _FakeVpn implements VpnService {
 
   @override
   Future<void> connect(MobileVpnConfig config) async {
+    if (config.requiresInsecureConsent && !config.insecureConsent) {
+      throw StateError('Unapproved compatibility connection');
+    }
+    unverified = config.requiresInsecureConsent;
     events.add('connect:${config.protocol}');
     current = VpnConnectionStatus.connecting;
   }

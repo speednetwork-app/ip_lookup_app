@@ -7,7 +7,7 @@ use DomainException;
 /** Typed HY2 response only; authorization remains in MobileVpnConfigController. */
 final class MobileHysteriaConfig
 {
-    public static function build(array $server, ?array $manifest, int $now, array $certificatePins = []): array
+    public static function build(array $server, ?array $manifest, int $now, array $certificatePins = [], bool $enableCompatibility = false): array
     {
         $settings = (array) ($server['protocol_settings'] ?? []);
         if (($server['type'] ?? '') !== 'hysteria' || (int) ($settings['version'] ?? 0) !== 2) {
@@ -48,7 +48,8 @@ final class MobileHysteriaConfig
             && preg_match('/^[a-fA-F0-9]{64}$/D', (string) ($pin['sha256'] ?? ''))) {
             $fingerprint = strtolower($pin['sha256']);
         }
-        if (($tls['allow_insecure'] ?? false) && $fingerprint === '') {
+        $compatibility = (bool) ($tls['allow_insecure'] ?? false) && $fingerprint === '';
+        if ($compatibility && !$enableCompatibility) {
             throw new DomainException('HY2 节点尚未配置可信证书指纹，请先使用 VLESS 线路');
         }
         if ($host === '' || $port < 1 || $port > 65535 || $password === '' || $serverName === '') {
@@ -82,7 +83,8 @@ final class MobileHysteriaConfig
             'authentication' => ['password' => $password],
             'transport' => $transport,
             'security' => ['type' => 'tls', 'server_name' => $serverName,
-                'allow_insecure' => false, 'pinned_peer_cert_sha256' => $fingerprint],
+                'allow_insecure' => $compatibility, 'pinned_peer_cert_sha256' => $fingerprint,
+                'compatibility_mode' => $compatibility ? 'hy2-insecure-v1' : 'verified'],
         ];
     }
 }

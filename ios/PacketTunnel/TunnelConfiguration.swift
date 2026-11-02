@@ -32,7 +32,8 @@ struct TunnelConfiguration {
             values["allow_insecure"] is Bool else { throw Self.invalid() }
       let pin = values["pinned_peer_cert_sha256"] as? String ?? ""
       guard (pin.isEmpty || pin.range(of: "^[a-fA-F0-9]{64}$", options: .regularExpression) != nil),
-            (values["allow_insecure"] as? Bool != true || !pin.isEmpty) else {
+            (values["allow_insecure"] as? Bool != true || !pin.isEmpty ||
+             values["hy2_insecure_consent"] as? Bool == true) else {
         throw Self.invalid()
       }
       for key in ["up_mbps", "down_mbps"] {
@@ -56,6 +57,24 @@ struct TunnelConfiguration {
     self.address = address
     self.port = port
     self.serverName = serverName
+  }
+
+  var usesHy2Compatibility: Bool {
+    isHy2 && values["allow_insecure"] as? Bool == true &&
+      (values["pinned_peer_cert_sha256"] as? String ?? "").isEmpty
+  }
+
+  func hy2CompatibilityPayload() -> [String: Any] {
+    ["address": address, "port": port, "server_name": serverName,
+     "password": values["password"] as? String ?? "",
+     "allow_insecure": values["allow_insecure"] as? Bool ?? false,
+     "insecure_consent": values["hy2_insecure_consent"] as? Bool ?? false,
+     "pinned_peer_cert_sha256": values["pinned_peer_cert_sha256"] as? String ?? "",
+     "obfs_password": values["obfs_password"] as? String ?? "",
+     "server_ports": values["server_ports"] as? String ?? "",
+     "hop_interval": values["hop_interval"] as? Int ?? 30,
+     "up_mbps": values["up_mbps"] as? Int ?? 0,
+     "down_mbps": values["down_mbps"] as? Int ?? 0]
   }
 
   func makeProxyOutbound() -> [String: Any] {
@@ -118,7 +137,16 @@ struct TunnelConfiguration {
     ]
   }
 
-  func makeXrayJSON(tunnelFileDescriptor: Int32) throws -> String {
+  func makeXrayJSON(tunnelFileDescriptor: Int32, compatibilityEndpoint: [String: Any]? = nil) throws -> String {
+    var proxy: [String: Any]
+    if usesHy2Compatibility {
+      guard let endpoint = compatibilityEndpoint, let localPort = endpoint["port"] as? Int,
+            (1...65535).contains(localPort), let user = endpoint["user"] as? String, !user.isEmpty,
+            let password = endpoint["password"] as? String, !password.isEmpty else { throw Self.invalid() }
+      proxy = ["tag": "proxy", "protocol": "socks", "settings": ["servers": [[
+        "address": "127.0.0.1", "port": localPort, "users": [["user": user, "pass": password]],
+      ]]]]
+    } else { proxy = makeProxyOutbound() }
     let configuration: [String: Any] = [
       "log": ["loglevel": "warning"],
       "env": ["xray.tun.fd": String(tunnelFileDescriptor)],
@@ -129,7 +157,7 @@ struct TunnelConfiguration {
                      "dns": ["1.1.1.1", "8.8.8.8"], "userLevel": 0],
         "sniffing": ["enabled": true, "destOverride": ["http", "tls", "quic"]],
       ]],
-      "outbounds": [makeProxyOutbound(), ["tag": "direct", "protocol": "freedom"],
+      "outbounds": [proxy, ["tag": "direct", "protocol": "freedom"],
                     ["tag": "block", "protocol": "blackhole"]],
       "routing": ["domainStrategy": "IPIfNonMatch", "rules": [[
         "type": "field", "inboundTag": ["tun-in"], "outboundTag": "proxy",

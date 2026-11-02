@@ -18,6 +18,18 @@ Map<String, dynamic> hy2Fixture() => {
     };
 
 void main() {
+  test('compatibility requires explicit backend mode and local consent', () {
+    final json = hy2Fixture();
+    json['security']['allow_insecure'] = true;
+    expect(() => MobileVpnConfig.fromJson(json), throwsFormatException);
+    json['security']['compatibility_mode'] = 'hy2-insecure-v1';
+    final config = MobileVpnConfig.fromJson(json);
+    expect(config.requiresInsecureConsent, isTrue);
+    expect(config.toPlatformMap()['hy2_insecure_consent'], isFalse);
+    final approved = config.approveInsecureCompatibility();
+    expect(approved.toPlatformMap()['hy2_insecure_consent'], isTrue);
+    expect(config.toPlatformMap()['hy2_insecure_consent'], isFalse);
+  });
   test('HY2 has its own authentication and secure TLS default', () {
     final config = MobileVpnConfig.fromJson(hy2Fixture());
     expect(config.protocol, 'hysteria2');

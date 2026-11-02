@@ -19,6 +19,11 @@ check($result['authentication']['password'] === 'fixture-password', 'account pas
 check($result['security']['allow_insecure'] === false, 'TLS must default to verification');
 check($result['refresh_after'] === 1300, 'expiry');
 $insecure = $node; $insecure['protocol_settings']['tls']['allow_insecure'] = true; reject($insecure);
+$compat = MobileHysteriaConfig::build($insecure, null, 1000, [], true);
+check($compat['security']['allow_insecure'] === true, 'explicit node compatibility');
+check($compat['security']['compatibility_mode'] === 'hy2-insecure-v1', 'capability-gated compatibility');
+$verified = MobileHysteriaConfig::build($node, null, 1000, [], true);
+check($verified['security']['allow_insecure'] === false, 'capability never weakens verified node TLS');
 $pins = [7 => ['host' => 'node.example.com', 'port' => 443, 'server_name' => 'tls.example.com', 'sha256' => str_repeat('a', 64)]];
 $pinned = MobileHysteriaConfig::build($insecure, null, 1000, $pins);
 check($pinned['security']['allow_insecure'] === false, 'pinning is not insecure mode');
