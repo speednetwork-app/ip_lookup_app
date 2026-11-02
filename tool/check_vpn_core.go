@@ -56,7 +56,7 @@ func check(c testCase, cert, key string) error {
         } else { serverMasks = append(serverMasks, item) }
     }
     server, err := start(object{
-        "log": object{"loglevel": "none"},
+        "log": object{"loglevel": "debug"},
         "inbounds": []any{object{"listen": "127.0.0.1", "port": port, "protocol": "hysteria",
             "settings": object{"version": 2, "users": []any{object{"auth": "fixture-password"}}},
             "streamSettings": object{"network": "hysteria", "security": "tls",
@@ -77,7 +77,7 @@ func check(c testCase, cert, key string) error {
     tlsSettings["pinnedPeerCertSha256"] = fmt.Sprintf("%x", digest)
     tcp, err := net.Listen("tcp", "127.0.0.1:0"); if err != nil { return err }
     socksPort := tcp.Addr().(*net.TCPAddr).Port; tcp.Close()
-    client, err := start(object{"log": object{"loglevel": "none"},
+    client, err := start(object{"log": object{"loglevel": "debug"},
         "inbounds": []any{object{"listen": "127.0.0.1", "port": socksPort, "protocol": "socks", "settings": object{"auth": "noauth"}}},
         "outbounds": []any{c.Outbound},
     }); if err != nil { return err }; defer client.Close()
