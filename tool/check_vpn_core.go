@@ -56,7 +56,7 @@ func check(c testCase, cert, key string) error {
         } else { serverMasks = append(serverMasks, item) }
     }
     server, err := start(object{
-        "log": object{"loglevel": "debug"},
+        "log": object{"loglevel": "none"},
         "inbounds": []any{object{"listen": "127.0.0.1", "port": port, "protocol": "hysteria",
             "settings": object{"version": 2, "users": []any{object{"auth": "fixture-password"}}},
             "streamSettings": object{"network": "hysteria", "security": "tls",
@@ -64,7 +64,11 @@ func check(c testCase, cert, key string) error {
                 "tlsSettings": object{"alpn": []string{"h3"}, "certificates": []any{object{"certificateFile": cert, "keyFile": key}}},
                 "finalmask": object{"udp": serverMasks, "quicParams": object{"disableChromeParrot": true}},
             }}},
-        "outbounds": []any{object{"protocol": "freedom"}},
+        // Only the isolated harness may reach its loopback HTTP fixture. The
+        // production outbound retains Xray's default private-address protections.
+        "outbounds": []any{object{"protocol": "freedom", "settings": object{
+            "finalRules": []any{object{"action": "allow", "ip": []string{"127.0.0.1/32"}}},
+        }}},
     }); if err != nil { return err }; defer server.Close()
     settings := c.Outbound["settings"].(map[string]any)
     settings["address"] = "127.0.0.1"; settings["port"] = port
@@ -77,7 +81,7 @@ func check(c testCase, cert, key string) error {
     tlsSettings["pinnedPeerCertSha256"] = fmt.Sprintf("%x", digest)
     tcp, err := net.Listen("tcp", "127.0.0.1:0"); if err != nil { return err }
     socksPort := tcp.Addr().(*net.TCPAddr).Port; tcp.Close()
-    client, err := start(object{"log": object{"loglevel": "debug"},
+    client, err := start(object{"log": object{"loglevel": "none"},
         "inbounds": []any{object{"listen": "127.0.0.1", "port": socksPort, "protocol": "socks", "settings": object{"auth": "noauth"}}},
         "outbounds": []any{c.Outbound},
     }); if err != nil { return err }; defer client.Close()

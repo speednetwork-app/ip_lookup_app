@@ -9,6 +9,7 @@ PHP=/www/server/php/82/bin/php
 EXPECTED_SHA=9c8faf5e646ecb22f78a80cba22ceb6e682ddcd4380edafbd9d8ba991849b7b6
 printf '%s  %s\n' "$EXPECTED_SHA" "$CONTROLLER" | sha256sum -c -
 test ! -e "$SERVICE"
+test -s "$APP/storage/app/mobile-hy2-cert-pins.json"
 "$PHP" -l "$STAGING/MobileVpnConfigController.php"
 "$PHP" -l "$STAGING/MobileHysteriaConfig.php"
 "$PHP" "$STAGING/config_test.php"
