@@ -104,3 +104,16 @@ https://github.com/XTLS/Xray-core/blob/1b1647cd9ddf/infra/conf/transport_finalma
 
 Official compatibility client source (MIT):
 https://github.com/apernet/hysteria/tree/ca8fbd874fd6ca82413948de6dc5924405e103e1
+
+## TestFlight upload
+
+At the user's request, source `6fb38c3` was rebuilt and **1.6.3 (18)** uploaded
+to App Store Connect on 2026-11-02 at 17:40 (Asia/Shanghai).
+https://github.com/speednetwork-app/ip_lookup_app/actions/runs/41421988568
+
+The workflow completed successfully, including native regression checks, static
+analysis, signing, export and upload. Apple's uploader returned
+`UPLOAD SUCCEEDED with no errors` (delivery UUID
+`1d784dcd-b0f4-4398-9d72-9cfa8300eb19`). App Store Connect processing and TestFlight
+availability have not been independently confirmed. No App Review submission or
+App Store release was performed. Real-node device acceptance remains outstanding.
