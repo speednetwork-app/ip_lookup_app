@@ -38,6 +38,13 @@ with an exact certificate pin; absent/stale pins fail closed for insecure nodes.
 No certificate private key is needed or sent to the app. Other clients' settings
 are unchanged. Missing TLS flags always default to normal certificate verification.
 
+A strict, unauthenticated QUIC TLS probe on 2026-11-02 did not verify any of the
+39 relay entries. Several returned a certificate without subjectAltName; others
+timed out. A timeout is not evidence of an invalid certificate. No account login,
+HY2 proxy stream, unauthenticated certificate pin acceptance, or production write
+was performed. The backend controller checksum remained
+`9c8faf5e646ecb22f78a80cba22ceb6e682ddcd4380edafbd9d8ba991849b7b6`.
+
 Client changes preserve HY2 selection on refresh, validate config node ID/protocol,
 send the real app version, and disconnect/reconnect when selecting a different
 line during an active VPN session. Fetch/validation failure preserves the previous
@@ -49,6 +56,12 @@ and VLESS config startup via `tool/check_vpn_core.sh`; cloud iOS signed build.
 Real iPhone/iPad switching, public IP and background-network validation remain
 device acceptance steps. No new TestFlight upload or App Store submission is
 performed by the verification run (`upload_to_app_store=false`).
+
+Verification run (source commit `bb97779`):
+https://github.com/speednetwork-app/ip_lookup_app/actions/runs/41407674957
+Flutter static analysis and all 57 tests passed locally; staged PHP lint/config
+tests passed on PHP 8.2. Native Swift checks and all pinned-core loopback cases
+passed in this run. Check the run's final result separately for iOS signing/build.
 
 Pinned upstream implementation:
 https://github.com/XTLS/Xray-core/tree/1b1647cd9ddf/proxy/hysteria
