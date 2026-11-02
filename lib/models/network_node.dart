@@ -23,6 +23,11 @@ class NetworkNode {
 
   bool get isOnline => availability == NodeAvailability.online;
 
+  // HY1 remains unsupported; the config endpoint validates the HY2 version.
+  bool get supportsVpn => const {'VLESS', 'HYSTERIA', 'HYSTERIA2', 'HY2'}
+      .contains(protocol.toUpperCase());
+  bool get canConnect => isOnline && supportsVpn;
+
   factory NetworkNode.fromJson(Map<String, dynamic> json) {
     final status = _toInt(json['available_status'] ?? json['is_online']);
     final rawType = _text(json['type']);

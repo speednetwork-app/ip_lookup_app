@@ -60,7 +60,7 @@ class _UiAuth extends AuthProvider {
             name: longName
                 ? '测试节点 ${(i + 1).toString().padLeft(2, '0')} 超长地区与完整线路名称必须保持可读'
                 : '测试节点 ${(i + 1).toString().padLeft(2, '0')}',
-            protocol: 'VLESS',
+            protocol: i == 1 ? 'HYSTERIA' : 'VLESS',
             rate: 0.1,
             availability:
                 i == 11 ? NodeAvailability.offline : NodeAvailability.online,

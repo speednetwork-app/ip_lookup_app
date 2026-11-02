@@ -18,6 +18,13 @@ class MobileVpnConfig {
     required this.shortId,
     required this.fingerprint,
     required this.spiderX,
+    this.password = '',
+    this.allowInsecure = false,
+    this.obfsPassword = '',
+    this.serverPorts = '',
+    this.hopInterval = 30,
+    this.upMbps = 0,
+    this.downMbps = 0,
   });
 
   factory MobileVpnConfig.fromJson(Map<String, dynamic> json) {
@@ -35,9 +42,13 @@ class MobileVpnConfig {
     final protocol = _requiredString(json, 'protocol');
     final transportType = _requiredString(transport, 'type');
     final securityType = _requiredString(security, 'type');
-    if (protocol != 'vless' ||
-        transportType != 'raw' ||
-        securityType != 'reality') {
+    final isVless = protocol == 'vless' &&
+        transportType == 'raw' &&
+        securityType == 'reality';
+    final isHy2 = protocol == 'hysteria2' &&
+        transportType == 'quic' &&
+        securityType == 'tls';
+    if (!isVless && !isHy2) {
       throw const FormatException('Unsupported VPN node configuration');
     }
 
@@ -46,6 +57,39 @@ class MobileVpnConfig {
       throw const FormatException('Invalid VPN endpoint port');
     }
 
+    final obfs = transport['obfs'];
+    var obfsPassword = '';
+    if (isHy2 && obfs != null) {
+      if (obfs is! Map ||
+          obfs['type'] != 'salamander' ||
+          obfs['password'] is! String ||
+          (obfs['password'] as String).isEmpty) {
+        throw const FormatException('Unsupported HY2 obfuscation');
+      }
+      obfsPassword = obfs['password'] as String;
+    }
+    final ports = isHy2 ? _string(transport, 'ports') : '';
+    if (ports.isNotEmpty) {
+      final parts = ports.split('-');
+      final first = int.tryParse(parts.first);
+      final last = int.tryParse(parts.last);
+      if (parts.length != 2 ||
+          first == null ||
+          last == null ||
+          first < 1 ||
+          last > 65535 ||
+          first > last) {
+        throw const FormatException('Invalid HY2 port range');
+      }
+    }
+    final interval = isHy2 ? (transport['hop_interval'] ?? 30) : 30;
+    if (interval is! int || interval < 5 || interval > 3600) {
+      throw const FormatException('Invalid HY2 hop interval');
+    }
+    final insecure = security['allow_insecure'] ?? false;
+    if (isHy2 && insecure is! bool) {
+      throw const FormatException('Invalid HY2 TLS verification setting');
+    }
     return MobileVpnConfig(
       schemaVersion: schemaVersion,
       issuedAt: DateTime.fromMillisecondsSinceEpoch(
@@ -61,16 +105,23 @@ class MobileVpnConfig {
       nodeName: _requiredString(node, 'name'),
       address: _requiredString(endpoint, 'address'),
       port: port,
-      userId: _requiredString(authentication, 'id'),
-      encryption: _requiredString(authentication, 'encryption'),
-      flow: _requiredString(authentication, 'flow'),
+      userId: isVless ? _requiredString(authentication, 'id') : '',
+      encryption: isVless ? _requiredString(authentication, 'encryption') : '',
+      flow: isVless ? _requiredString(authentication, 'flow') : '',
       transportType: transportType,
       securityType: securityType,
       serverName: _requiredString(security, 'server_name'),
-      publicKey: _requiredString(security, 'public_key'),
+      publicKey: isVless ? _requiredString(security, 'public_key') : '',
       shortId: _string(security, 'short_id'),
-      fingerprint: _requiredString(security, 'fingerprint'),
-      spiderX: _requiredString(security, 'spider_x'),
+      fingerprint: isVless ? _requiredString(security, 'fingerprint') : '',
+      spiderX: isVless ? _requiredString(security, 'spider_x') : '',
+      password: isHy2 ? _requiredString(authentication, 'password') : '',
+      allowInsecure: isHy2 && insecure == true,
+      obfsPassword: obfsPassword,
+      serverPorts: ports,
+      hopInterval: interval,
+      upMbps: isHy2 ? _bandwidth(transport, 'up_mbps') : 0,
+      downMbps: isHy2 ? _bandwidth(transport, 'down_mbps') : 0,
     );
   }
 
@@ -92,6 +143,13 @@ class MobileVpnConfig {
   final String shortId;
   final String fingerprint;
   final String spiderX;
+  final String password;
+  final bool allowInsecure;
+  final String obfsPassword;
+  final String serverPorts;
+  final int hopInterval;
+  final int upMbps;
+  final int downMbps;
 
   Map<String, Object> toPlatformMap() => {
         'schema_version': schemaVersion,
@@ -110,7 +168,24 @@ class MobileVpnConfig {
         'short_id': shortId,
         'fingerprint': fingerprint,
         'spider_x': spiderX,
+        if (protocol == 'hysteria2') ...{
+          'password': password,
+          'allow_insecure': allowInsecure,
+          'obfs_password': obfsPassword,
+          'server_ports': serverPorts,
+          'hop_interval': hopInterval,
+          'up_mbps': upMbps,
+          'down_mbps': downMbps,
+        },
       };
+}
+
+int _bandwidth(Map<String, dynamic> json, String key) {
+  final value = json[key] ?? 0;
+  if (value is! int || value < 0 || value > 1000000) {
+    throw const FormatException('Invalid HY2 bandwidth');
+  }
+  return value;
 }
 
 Map<String, dynamic> _requiredMap(Map<String, dynamic> json, String key) {

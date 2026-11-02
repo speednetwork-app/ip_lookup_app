@@ -18,9 +18,11 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
   ) {
     Self.record(stage: "正在读取 VPN 配置")
     do {
-      let configuration = try TunnelConfiguration(
-        protocolConfiguration: protocolConfiguration
-      )
+      guard let tunnel = protocolConfiguration as? NETunnelProviderProtocol,
+            let values = tunnel.providerConfiguration else {
+        throw Self.error("VPN 配置缺失")
+      }
+      let configuration = try TunnelConfiguration(values: values)
       setTunnelNetworkSettings(makeNetworkSettings()) { [weak self] error in
         guard let self else {
           let failure = Self.error("VPN 扩展已终止")
@@ -175,115 +177,5 @@ final class PacketTunnelProvider: NEPacketTunnelProvider {
     } else if stage == "正在读取 VPN 配置" || stage == "VPN 已连接" {
       defaults.removeObject(forKey: lastErrorKey)
     }
-  }
-}
-
-private struct TunnelConfiguration {
-  let address: String
-  let port: Int
-  let userID: String
-  let encryption: String
-  let flow: String
-  let serverName: String
-  let publicKey: String
-  let shortID: String
-  let fingerprint: String
-  let spiderX: String
-
-  init(protocolConfiguration: NEVPNProtocol) throws {
-    guard let tunnelProtocol = protocolConfiguration as? NETunnelProviderProtocol,
-          let values = tunnelProtocol.providerConfiguration,
-          values["schema_version"] as? Int == 1,
-          values["protocol"] as? String == "vless",
-          values["transport"] as? String == "raw",
-          values["security"] as? String == "reality",
-          let address = values["address"] as? String,
-          !address.isEmpty,
-          let port = values["port"] as? Int,
-          (1...65535).contains(port),
-          let userID = values["user_id"] as? String,
-          !userID.isEmpty,
-          let serverName = values["server_name"] as? String,
-          !serverName.isEmpty,
-          let publicKey = values["public_key"] as? String,
-          !publicKey.isEmpty
-    else {
-      throw PacketTunnelProvider.error("VPN 配置缺失或版本不受支持")
-    }
-    self.address = address
-    self.port = port
-    self.userID = userID
-    encryption = values["encryption"] as? String ?? "none"
-    flow = values["flow"] as? String ?? ""
-    self.serverName = serverName
-    self.publicKey = publicKey
-    shortID = values["short_id"] as? String ?? ""
-    fingerprint = values["fingerprint"] as? String ?? "chrome"
-    spiderX = values["spider_x"] as? String ?? "/"
-  }
-
-  func makeXrayJSON(tunnelFileDescriptor: Int32) throws -> String {
-    let configuration: [String: Any] = [
-      "log": ["loglevel": "warning"],
-      "env": ["xray.tun.fd": String(tunnelFileDescriptor)],
-      "dns": [
-        "servers": ["1.1.1.1", "8.8.8.8"],
-        "queryStrategy": "UseIP",
-      ],
-      "inbounds": [[
-        "tag": "tun-in",
-        "protocol": "tun",
-        "settings": [
-          "mtu": 1400,
-          "gateway": ["198.18.0.1/15", "fd00::1/64"],
-          "dns": ["1.1.1.1", "8.8.8.8"],
-          "userLevel": 0,
-        ],
-        "sniffing": [
-          "enabled": true,
-          "destOverride": ["http", "tls", "quic"],
-        ],
-      ]],
-      "outbounds": [
-        [
-          "tag": "proxy",
-          "protocol": "vless",
-          "settings": [
-            "address": address,
-            "port": port,
-            "id": userID,
-            "encryption": encryption,
-            "flow": flow,
-            "packetEncoding": "xudp",
-          ],
-          "streamSettings": [
-            "network": "raw",
-            "security": "reality",
-            "realitySettings": [
-              "serverName": serverName,
-              "fingerprint": fingerprint,
-              "password": publicKey,
-              "shortId": shortID,
-              "spiderX": spiderX,
-            ],
-          ],
-        ],
-        ["tag": "direct", "protocol": "freedom"],
-        ["tag": "block", "protocol": "blackhole"],
-      ],
-      "routing": [
-        "domainStrategy": "IPIfNonMatch",
-        "rules": [[
-          "type": "field",
-          "inboundTag": ["tun-in"],
-          "outboundTag": "proxy",
-        ]],
-      ],
-    ]
-    let data = try JSONSerialization.data(withJSONObject: configuration)
-    guard let text = String(data: data, encoding: .utf8) else {
-      throw PacketTunnelProvider.error("无法编码 Xray 配置")
-    }
-    return text
   }
 }

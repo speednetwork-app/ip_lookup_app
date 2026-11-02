@@ -2,12 +2,81 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ip_lookup_app/models/account_overview.dart';
 import 'package:ip_lookup_app/models/account_notice.dart';
 import 'package:ip_lookup_app/models/traffic_trend.dart';
+import 'package:ip_lookup_app/models/network_node.dart';
+import 'package:ip_lookup_app/models/mobile_vpn_config.dart';
+import 'package:ip_lookup_app/services/vpn_service.dart';
+import 'package:ip_lookup_app/app_brand.dart';
 import 'package:ip_lookup_app/providers/auth_provider.dart';
 import 'package:ip_lookup_app/services/account_cache.dart';
 import 'package:ip_lookup_app/services/auth_service.dart';
 import 'package:ip_lookup_app/services/session_storage.dart';
 
 void main() {
+  for (final failConfig in [false, true]) {
+    test('switch VLESS to HY2 with config failure = $failConfig', () async {
+      final service = _FakeAuthService(overview: _overview());
+      final vpn = _FakeVpn();
+      final provider = AuthProvider(
+          service: service,
+          vpnService: vpn,
+          storage:
+              _MemorySessionStorage(token: 'saved', email: 'test@example.com'),
+          cache: _MemoryAccountCache());
+      addTearDown(provider.dispose);
+      await provider.initialize();
+      await provider.refreshNetworkNodes();
+      expect(provider.selectedNetworkNodeId, '1');
+      vpn.current = VpnConnectionStatus.connected;
+      await provider.refreshVpnStatus();
+      service.configError =
+          failConfig ? const AuthException('HY2 配置未就绪') : null;
+      provider.selectNetworkNode(service.nodes[1]);
+      expect(provider.vpnBusy, isTrue);
+      // A second tap while busy must not start a competing connection.
+      provider.selectNetworkNode(service.nodes[0]);
+      for (var i = 0; i < 100 && provider.vpnBusy; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      expect(provider.vpnBusy, isFalse);
+      if (failConfig) {
+        expect(vpn.events, isEmpty);
+        expect(provider.selectedNetworkNodeId, '1');
+        expect(provider.vpnStatus, VpnConnectionStatus.connected);
+        expect(provider.vpnError, 'HY2 配置未就绪');
+      } else {
+        expect(vpn.events, ['disconnect', 'connect:hysteria2']);
+        expect(provider.selectedNetworkNodeId, '2');
+        expect(provider.vpnStatus, VpnConnectionStatus.connecting);
+        expect(provider.isVpnConnected, isFalse);
+        expect(
+            service.appVersion, '${AppBrand.version}+${AppBrand.buildNumber}');
+      }
+    });
+  }
+
+  test('select HY2 while disconnected does not connect without consent',
+      () async {
+    final service = _FakeAuthService(overview: _overview());
+    final vpn = _FakeVpn();
+    final provider = AuthProvider(
+        service: service,
+        vpnService: vpn,
+        storage:
+            _MemorySessionStorage(token: 'saved', email: 'test@example.com'),
+        cache: _MemoryAccountCache());
+    addTearDown(provider.dispose);
+    await provider.initialize();
+    await provider.refreshNetworkNodes();
+    provider.selectNetworkNode(service.nodes[1]);
+    expect(provider.selectedNetworkNodeId, '2');
+    expect(vpn.events, isEmpty);
+    await provider.refreshNetworkNodes();
+    expect(provider.selectedNetworkNodeId, '2');
+    await provider.toggleVpn();
+    expect(vpn.events, ['connect:hysteria2']);
+    expect(provider.isVpnConnected, isFalse);
+  });
+
   test('login stores session and exposes the account overview', () async {
     final service = _FakeAuthService(overview: _overview());
     final storage = _MemorySessionStorage();
@@ -123,6 +192,52 @@ class _FakeAuthService extends AuthService {
   final AccountOverview? overview;
   AuthException? overviewError;
   String? requestedToken;
+  AuthException? configError;
+  String? appVersion;
+  final nodes = [
+    NetworkNode.fromJson({
+      'id': 1,
+      'name': 'Fixture VLESS',
+      'type': 'vless',
+      'available_status': 2
+    }),
+    NetworkNode.fromJson({
+      'id': 2,
+      'name': 'Fixture HY2',
+      'type': 'hysteria',
+      'available_status': 2
+    }),
+  ];
+
+  @override
+  Future<List<NetworkNode>> getNetworkNodes(String token) async => nodes;
+
+  @override
+  Future<MobileVpnConfig> getMobileVpnConfig(String token,
+      {required int nodeId, String? appVersion}) async {
+    this.appVersion = appVersion;
+    if (configError != null) throw configError!;
+    return MobileVpnConfig(
+        schemaVersion: 1,
+        issuedAt: DateTime(2026),
+        refreshAfter: DateTime(2026),
+        protocol: nodeId == 2 ? 'hysteria2' : 'vless',
+        nodeId: nodeId,
+        nodeName: 'Fixture',
+        address: 'node.example.com',
+        port: 443,
+        userId: 'fixture',
+        encryption: 'none',
+        flow: '',
+        transportType: nodeId == 2 ? 'quic' : 'raw',
+        securityType: nodeId == 2 ? 'tls' : 'reality',
+        serverName: 'tls.example.com',
+        publicKey: 'fixture',
+        shortId: '',
+        fingerprint: 'chrome',
+        spiderX: '/',
+        password: nodeId == 2 ? 'fixture-password' : '');
+  }
 
   @override
   Future<LoginResult> login({
@@ -149,6 +264,26 @@ class _FakeAuthService extends AuthService {
 
   @override
   Future<List<AccountNotice>> getAccountNotices(String token) async => const [];
+}
+
+class _FakeVpn implements VpnService {
+  VpnConnectionStatus current = VpnConnectionStatus.disconnected;
+  final events = <String>[];
+  @override
+  Future<VpnConnectionStatus> status() async => current;
+  @override
+  Future<String?> lastError() async => null;
+  @override
+  Future<void> disconnect() async {
+    events.add('disconnect');
+    current = VpnConnectionStatus.disconnected;
+  }
+
+  @override
+  Future<void> connect(MobileVpnConfig config) async {
+    events.add('connect:${config.protocol}');
+    current = VpnConnectionStatus.connecting;
+  }
 }
 
 TrafficTrend _trend(TrafficRange range) => TrafficTrend(

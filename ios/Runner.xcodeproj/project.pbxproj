@@ -15,6 +15,7 @@
 		97C146FE1CF9000F007C117D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FD1CF9000F007C117D /* Assets.xcassets */; };
 		97C147011CF9000F007C117D /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 97C146FF1CF9000F007C117D /* LaunchScreen.storyboard */; };
 		AA0000010000000000000001 /* PacketTunnelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA0000030000000000000003 /* PacketTunnelProvider.swift */; };
+		AC2000010000000000000001 /* TunnelConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC2000020000000000000002 /* TunnelConfiguration.swift */; };
 		AA0000020000000000000002 /* PacketTunnel.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = AA0000060000000000000006 /* PacketTunnel.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		AB1000010000000000000001 /* VpnBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1000110000000000000011 /* VpnBridge.swift */; };
 		AB1000020000000000000002 /* LibXray.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = AB1000120000000000000012 /* LibXray.xcframework */; };
@@ -80,6 +81,7 @@
 		97C147001CF9000F007C117D /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		97C147021CF9000F007C117D /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AA0000030000000000000003 /* PacketTunnelProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelProvider.swift; sourceTree = "<group>"; };
+		AC2000020000000000000002 /* TunnelConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TunnelConfiguration.swift; sourceTree = "<group>"; };
 		AA0000040000000000000004 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AA0000050000000000000005 /* PacketTunnel.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = PacketTunnel.entitlements; sourceTree = "<group>"; };
 		AA0000060000000000000006 /* PacketTunnel.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PacketTunnel.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -172,6 +174,7 @@
 			isa = PBXGroup;
 			children = (
 				AA0000030000000000000003 /* PacketTunnelProvider.swift */,
+				AC2000020000000000000002 /* TunnelConfiguration.swift */,
 				AA0000040000000000000004 /* Info.plist */,
 				AA0000050000000000000005 /* PacketTunnel.entitlements */,
 			);
@@ -376,6 +379,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				AA0000010000000000000001 /* PacketTunnelProvider.swift in Sources */,
+				AC2000010000000000000001 /* TunnelConfiguration.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

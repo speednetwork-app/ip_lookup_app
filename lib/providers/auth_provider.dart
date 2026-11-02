@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import '../app_brand.dart';
+import '../models/mobile_vpn_config.dart';
 import '../models/account_overview.dart';
 import '../models/account_notice.dart';
 import '../models/traffic_trend.dart';
@@ -240,14 +242,11 @@ class AuthProvider with ChangeNotifier {
     try {
       _networkNodes = await _service.getNetworkNodes(_token);
       final selectedStillAvailable = _networkNodes.any(
-        (node) =>
-            node.id == _selectedNetworkNodeId &&
-            node.isOnline &&
-            node.protocol == 'VLESS',
+        (node) => node.id == _selectedNetworkNodeId && node.canConnect,
       );
       if (!selectedStillAvailable) {
         _selectedNetworkNodeId = _networkNodes
-            .where((node) => node.isOnline && node.protocol == 'VLESS')
+            .where((node) => node.canConnect)
             .map((node) => node.id)
             .firstOrNull;
       }
@@ -300,7 +299,19 @@ class AuthProvider with ChangeNotifier {
   }
 
   void selectNetworkNode(NetworkNode node) {
-    if (!node.isOnline || node.protocol != 'VLESS') return;
+    if (_vpnBusy ||
+        !node.canConnect ||
+        !_networkNodes.any(
+            (candidate) => candidate.id == node.id && candidate.canConnect) ||
+        node.id == _selectedNetworkNodeId) {
+      return;
+    }
+    if (_vpnStatus == VpnConnectionStatus.connected ||
+        _vpnStatus == VpnConnectionStatus.connecting ||
+        _vpnStatus == VpnConnectionStatus.reasserting) {
+      unawaited(_switchNetworkNode(node));
+      return;
+    }
     _selectedNetworkNodeId = node.id;
     _vpnError = '';
     notifyListeners();
@@ -322,22 +333,14 @@ class AuthProvider with ChangeNotifier {
         if (_networkNodes.isEmpty) await refreshNetworkNodes();
         final node = _networkNodes.firstWhere(
           (candidate) =>
-              candidate.id == _selectedNetworkNodeId &&
-              candidate.isOnline &&
-              candidate.protocol == 'VLESS',
+              candidate.id == _selectedNetworkNodeId && candidate.canConnect,
           orElse: () => _networkNodes.firstWhere(
-            (candidate) => candidate.isOnline && candidate.protocol == 'VLESS',
-            orElse: () => throw const AuthException('当前没有可连接的 VLESS 线路'),
+            (candidate) => candidate.canConnect,
+            orElse: () => throw const AuthException('当前没有可连接的 VLESS 或 HY2 线路'),
           ),
         );
         _selectedNetworkNodeId = node.id;
-        final nodeId = int.tryParse(node.id);
-        if (nodeId == null) throw const AuthException('线路编号无效');
-        final config = await _service.getMobileVpnConfig(
-          _token,
-          nodeId: nodeId,
-          appVersion: '1.6.0+14',
-        );
+        final config = await _configurationFor(node);
         _vpnStatus = VpnConnectionStatus.connecting;
         notifyListeners();
         await _vpnService.connect(config);
@@ -351,6 +354,71 @@ class AuthProvider with ChangeNotifier {
     } catch (_) {
       _vpnError = 'VPN 操作失败，请稍后重试';
     } finally {
+      _vpnBusy = false;
+      notifyListeners();
+    }
+  }
+
+  Future<MobileVpnConfig> _configurationFor(NetworkNode node) async {
+    final nodeId = int.tryParse(node.id);
+    if (nodeId == null) throw const AuthException('线路编号无效');
+    final token = _token;
+    if (!isSignedIn || token.isEmpty) throw const AuthException('请先登录后再连接 VPN');
+    final config = await _service.getMobileVpnConfig(
+      token,
+      nodeId: nodeId,
+      appVersion: '${AppBrand.version}+${AppBrand.buildNumber}',
+    );
+    if (!isSignedIn || _token != token) {
+      throw const AuthException('登录状态已变更，请重试');
+    }
+    final expected =
+        node.protocol.toUpperCase() == 'VLESS' ? 'vless' : 'hysteria2';
+    if (config.nodeId != nodeId || config.protocol != expected) {
+      throw const AuthException('服务器返回的线路配置不匹配');
+    }
+    return config;
+  }
+
+  Future<void> _switchNetworkNode(NetworkNode node) async {
+    _vpnBusy = true;
+    _vpnError = '';
+    notifyListeners();
+    try {
+      // Validate first: a rejected HY2 config must not drop a working VLESS tunnel.
+      final token = _token;
+      final config = await _configurationFor(node);
+      await _vpnService.disconnect();
+      final deadline = DateTime.now().add(const Duration(seconds: 10));
+      while (true) {
+        final status = await _vpnService.status();
+        _vpnStatus = status;
+        if (status == VpnConnectionStatus.disconnected ||
+            status == VpnConnectionStatus.invalid) {
+          break;
+        }
+        if (DateTime.now().isAfter(deadline)) {
+          throw const AuthException('原连接尚未断开，请稍后重试');
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 250));
+      }
+      if (!isSignedIn || _token != token) {
+        throw const AuthException('登录状态已变更，请重试');
+      }
+      _selectedNetworkNodeId = node.id;
+      _vpnStatus = VpnConnectionStatus.connecting;
+      notifyListeners();
+      await _vpnService.connect(config);
+      await refreshVpnStatus(notify: false);
+    } on AuthException catch (error) {
+      _vpnError = error.message;
+    } on PlatformException catch (error) {
+      _vpnError = error.message ?? '无法切换 VPN 线路';
+    } catch (_) {
+      _vpnError = '切换线路失败，请稍后重试';
+    } finally {
+      // Connection status always comes from iOS, never from the selected row.
+      await refreshVpnStatus(notify: false);
       _vpnBusy = false;
       notifyListeners();
     }

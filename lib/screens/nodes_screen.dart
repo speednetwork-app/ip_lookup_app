@@ -63,7 +63,7 @@ class _NodesScreenState extends State<NodesScreen> {
             final nodes = [...auth.networkNodes]..sort(_compareNodes);
             final onlineNodes = nodes.where((node) => node.isOnline).toList();
             final recommendedId =
-                onlineNodes.isEmpty ? null : onlineNodes.first.id;
+                onlineNodes.where((node) => node.canConnect).firstOrNull?.id;
             final visibleNodes =
                 auth.nodesError.isEmpty ? nodes : <NetworkNode>[];
             return Align(
@@ -94,6 +94,7 @@ class _NodesScreenState extends State<NodesScreen> {
                             node: node,
                             recommended: node.id == recommendedId,
                             selected: node.id == auth.selectedNetworkNodeId,
+                            busy: auth.vpnBusy,
                             onSelected: () => auth.selectNetworkNode(node),
                           ),
                         );
@@ -197,17 +198,19 @@ class _NodeTile extends StatelessWidget {
     required this.recommended,
     required this.selected,
     required this.onSelected,
+    required this.busy,
   });
   final NetworkNode node;
   final bool recommended;
   final bool selected;
   final VoidCallback onSelected;
+  final bool busy;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final colors = context.pikayunColors;
-    final available = node.isOnline && node.protocol == 'VLESS';
+    final available = node.canConnect && !busy;
     final status = switch (node.availability) {
       NodeAvailability.online => '在线',
       NodeAvailability.heartbeat => '仅心跳',

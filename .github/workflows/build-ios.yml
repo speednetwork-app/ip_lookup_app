@@ -63,6 +63,9 @@ jobs:
           test -f ios/Frameworks/LibXray.xcframework/Info.plist
           plutil -lint ios/Frameworks/LibXray.xcframework/Info.plist
 
+      - name: Verify native VLESS and HY2 configuration and loopback transport
+        run: bash tool/check_vpn_core.sh
+
       - name: Save LibXray Apple framework
         if: steps.libxray-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
