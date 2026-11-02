@@ -11,7 +11,10 @@ Map<String, dynamic> hy2Fixture() => {
       'endpoint': {'address': 'node.example.com', 'port': 443},
       'authentication': {'password': 'fixture-password'},
       'transport': <String, dynamic>{'type': 'quic'},
-      'security': <String, dynamic>{'type': 'tls', 'server_name': 'tls.example.com'},
+      'security': <String, dynamic>{
+        'type': 'tls',
+        'server_name': 'tls.example.com'
+      },
     };
 
 void main() {
@@ -28,6 +31,7 @@ void main() {
   test('HY2 preserves explicit TLS, obfuscation, hopping and bandwidth', () {
     final json = hy2Fixture();
     json['security']['allow_insecure'] = true;
+    json['security']['pinned_peer_cert_sha256'] = 'a' * 64;
     json['transport'].addAll({
       'obfs': {'type': 'salamander', 'password': 'fixture-obfs'},
       'ports': '20000-21000',
@@ -42,6 +46,7 @@ void main() {
     expect(config.upMbps, 10);
     expect(config.downMbps, 100);
     expect(config.allowInsecure, isTrue);
+    expect(config.pinnedPeerCertSha256, 'a' * 64);
   });
 
   for (final field in [

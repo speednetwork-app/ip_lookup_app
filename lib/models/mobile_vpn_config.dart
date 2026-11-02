@@ -20,6 +20,7 @@ class MobileVpnConfig {
     required this.spiderX,
     this.password = '',
     this.allowInsecure = false,
+    this.pinnedPeerCertSha256 = '',
     this.obfsPassword = '',
     this.serverPorts = '',
     this.hopInterval = 30,
@@ -90,6 +91,12 @@ class MobileVpnConfig {
     if (isHy2 && insecure is! bool) {
       throw const FormatException('Invalid HY2 TLS verification setting');
     }
+    final pin = isHy2 ? _string(security, 'pinned_peer_cert_sha256') : '';
+    if ((pin.isNotEmpty && !RegExp(r'^[a-fA-F0-9]{64}$').hasMatch(pin)) ||
+        (isHy2 && insecure == true && pin.isEmpty)) {
+      throw const FormatException(
+          'HY2 certificate verification is not configured');
+    }
     return MobileVpnConfig(
       schemaVersion: schemaVersion,
       issuedAt: DateTime.fromMillisecondsSinceEpoch(
@@ -117,6 +124,7 @@ class MobileVpnConfig {
       spiderX: isVless ? _requiredString(security, 'spider_x') : '',
       password: isHy2 ? _requiredString(authentication, 'password') : '',
       allowInsecure: isHy2 && insecure == true,
+      pinnedPeerCertSha256: pin,
       obfsPassword: obfsPassword,
       serverPorts: ports,
       hopInterval: interval,
@@ -145,6 +153,7 @@ class MobileVpnConfig {
   final String spiderX;
   final String password;
   final bool allowInsecure;
+  final String pinnedPeerCertSha256;
   final String obfsPassword;
   final String serverPorts;
   final int hopInterval;
@@ -171,6 +180,7 @@ class MobileVpnConfig {
         if (protocol == 'hysteria2') ...{
           'password': password,
           'allow_insecure': allowInsecure,
+          'pinned_peer_cert_sha256': pinnedPeerCertSha256,
           'obfs_password': obfsPassword,
           'server_ports': serverPorts,
           'hop_interval': hopInterval,

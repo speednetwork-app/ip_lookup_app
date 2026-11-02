@@ -30,6 +30,11 @@ struct TunnelConfiguration {
             values["security"] as? String == "tls",
             let password = values["password"] as? String, !password.isEmpty,
             values["allow_insecure"] is Bool else { throw Self.invalid() }
+      let pin = values["pinned_peer_cert_sha256"] as? String ?? ""
+      guard (pin.isEmpty || pin.range(of: "^[a-fA-F0-9]{64}$", options: .regularExpression) != nil),
+            (values["allow_insecure"] as? Bool != true || !pin.isEmpty) else {
+        throw Self.invalid()
+      }
       for key in ["up_mbps", "down_mbps"] {
         guard let speed = values[key] as? Int, (0...1_000_000).contains(speed) else {
           throw Self.invalid()
@@ -97,16 +102,16 @@ struct TunnelConfiguration {
       quic["brutalUp"] = "\(up)mbps"
       quic["brutalDown"] = "\(down)mbps"
     }
+    var tls: [String: Any] = ["serverName": serverName, "alpn": ["h3"]]
+    if let pin = values["pinned_peer_cert_sha256"] as? String, !pin.isEmpty {
+      tls["pinnedPeerCertSha256"] = pin
+    }
     return [
       "tag": "proxy", "protocol": "hysteria",
       "settings": ["version": 2, "address": address, "port": port],
       "streamSettings": [
         "network": "hysteria", "security": "tls",
-        "tlsSettings": [
-          "serverName": serverName, "alpn": ["h3"],
-          // Never infer insecure mode from a missing setting.
-          "allowInsecure": values["allow_insecure"] as? Bool ?? false,
-        ],
+        "tlsSettings": tls,
         "hysteriaSettings": ["version": 2, "auth": values["password"] as? String ?? ""],
         "finalmask": ["udp": masks, "quicParams": quic],
       ],

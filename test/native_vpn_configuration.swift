@@ -21,7 +21,7 @@ struct NativeVpnConfigurationTests {
       let config = try TunnelConfiguration(values: values)
       let outbound = config.makeProxyOutbound()
       let stream = outbound["streamSettings"] as! [String: Any]
-      precondition((stream["tlsSettings"] as! [String: Any])["allowInsecure"] as? Bool == false)
+      precondition((stream["tlsSettings"] as! [String: Any])["allowInsecure"] == nil)
       precondition((stream["hysteriaSettings"] as! [String: Any])["auth"] as? String == "fixture-password")
       let json = try config.makeXrayJSON(tunnelFileDescriptor: 12)
       let full = try JSONSerialization.jsonObject(with: Data(json.utf8)) as! [String: Any]
@@ -36,6 +36,15 @@ struct NativeVpnConfigurationTests {
         fatalError("Accepted missing \(key)")
       } catch { /* expected, without emitting configuration secrets */ }
     }
+    var pinned = base
+    pinned["allow_insecure"] = true
+    do {
+      _ = try TunnelConfiguration(values: pinned)
+      fatalError("Accepted insecure HY2 without a trusted pin")
+    } catch { /* expected */ }
+    pinned["pinned_peer_cert_sha256"] = String(repeating: "a", count: 64)
+    let tls = try TunnelConfiguration(values: pinned).makeProxyOutbound()["streamSettings"] as! [String: Any]
+    precondition((tls["tlsSettings"] as! [String: Any])["pinnedPeerCertSha256"] as? String == String(repeating: "a", count: 64))
     var vless = base
     vless["protocol"] = "vless"; vless["transport"] = "raw"; vless["security"] = "reality"
     vless["user_id"] = "11111111-2222-4333-8444-555555555555"

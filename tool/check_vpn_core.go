@@ -5,6 +5,7 @@ package main
 import (
     "crypto/rand"
     "crypto/rsa"
+    "crypto/sha256"
     "crypto/x509"
     "crypto/x509/pkix"
     "encoding/json"
@@ -67,8 +68,13 @@ func check(c testCase, cert, key string) error {
     }); if err != nil { return err }; defer server.Close()
     settings := c.Outbound["settings"].(map[string]any)
     settings["address"] = "127.0.0.1"; settings["port"] = port
-    // The isolated server uses an ephemeral self-signed test certificate.
-    stream["tlsSettings"].(map[string]any)["allowInsecure"] = true
+    // Pin the isolated server's ephemeral certificate, never disable verification.
+    certPEM, err := os.ReadFile(cert); if err != nil { return err }
+    block, _ := pem.Decode(certPEM); if block == nil { return fmt.Errorf("missing fixture certificate") }
+    digest := sha256.Sum256(block.Bytes)
+    tlsSettings := stream["tlsSettings"].(map[string]any)
+    delete(tlsSettings, "allowInsecure")
+    tlsSettings["pinnedPeerCertSha256"] = fmt.Sprintf("%x", digest)
     tcp, err := net.Listen("tcp", "127.0.0.1:0"); if err != nil { return err }
     socksPort := tcp.Addr().(*net.TCPAddr).Port; tcp.Close()
     client, err := start(object{"log": object{"loglevel": "none"},

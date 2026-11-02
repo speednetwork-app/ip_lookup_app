@@ -7,7 +7,7 @@ use DomainException;
 /** Typed HY2 response only; authorization remains in MobileVpnConfigController. */
 final class MobileHysteriaConfig
 {
-    public static function build(array $server, ?array $manifest, int $now): array
+    public static function build(array $server, ?array $manifest, int $now, array $certificatePins = []): array
     {
         $settings = (array) ($server['protocol_settings'] ?? []);
         if (($server['type'] ?? '') !== 'hysteria' || (int) ($settings['version'] ?? 0) !== 2) {
@@ -39,6 +39,18 @@ final class MobileHysteriaConfig
         $password = (string) ($server['password'] ?? '');
         $tls = (array) ($settings['tls'] ?? []);
         $serverName = trim((string) ($tls['server_name'] ?? '')) ?: $host;
+        $pin = $certificatePins[(string) ($server['id'] ?? '')] ?? null;
+        $fingerprint = '';
+        if (is_array($pin)
+            && ($pin['host'] ?? '') === ($server['host'] ?? '')
+            && (int) ($pin['port'] ?? 0) === (int) ($server['port'] ?? 0)
+            && ($pin['server_name'] ?? '') === $serverName
+            && preg_match('/^[a-fA-F0-9]{64}$/D', (string) ($pin['sha256'] ?? ''))) {
+            $fingerprint = strtolower($pin['sha256']);
+        }
+        if (($tls['allow_insecure'] ?? false) && $fingerprint === '') {
+            throw new DomainException('HY2 节点尚未配置可信证书指纹，请先使用 VLESS 线路');
+        }
         if ($host === '' || $port < 1 || $port > 65535 || $password === '' || $serverName === '') {
             throw new DomainException('HY2 节点配置不完整，请选择其他线路');
         }
@@ -70,7 +82,7 @@ final class MobileHysteriaConfig
             'authentication' => ['password' => $password],
             'transport' => $transport,
             'security' => ['type' => 'tls', 'server_name' => $serverName,
-                'allow_insecure' => (bool) ($tls['allow_insecure'] ?? false)],
+                'allow_insecure' => false, 'pinned_peer_cert_sha256' => $fingerprint],
         ];
     }
 }

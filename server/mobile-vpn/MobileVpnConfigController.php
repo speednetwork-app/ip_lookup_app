@@ -58,9 +58,11 @@ class MobileVpnConfigController extends Controller
         if (($server['type'] ?? null) === Server::TYPE_HYSTERIA) {
             $path = storage_path('app/v2rayn-hy2-forward.json');
             $manifest = is_readable($path) ? json_decode(file_get_contents($path), true) : null;
+            $pinPath = storage_path('app/mobile-hy2-cert-pins.json');
+            $pins = is_readable($pinPath) ? json_decode(file_get_contents($pinPath), true) : [];
             try {
                 $config = \App\Services\MobileHysteriaConfig::build(
-                    $server, is_array($manifest) ? $manifest : null, time()
+                    $server, is_array($manifest) ? $manifest : null, time(), is_array($pins) ? $pins : []
                 );
                 return $this->noStore($this->success($config));
             } catch (\DomainException $error) {
