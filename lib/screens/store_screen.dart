@@ -27,6 +27,13 @@ class StoreScreen extends StatelessWidget {
         ),
         actions: [
           if (auth.isSignedIn && auth.applePurchases.supported)
+            IconButton(
+                tooltip: '检查购买状态',
+                onPressed: auth.applePurchases.canRestore
+                    ? auth.applePurchases.checkPurchases
+                    : null,
+                icon: const Icon(Icons.receipt_long_outlined)),
+          if (auth.isSignedIn && auth.applePurchases.supported)
             TextButton(
               onPressed: auth.applePurchases.canRestore
                   ? auth.applePurchases.restore
@@ -280,11 +287,15 @@ class _PlanCardState extends State<_PlanCard> {
                       ? subscription?.productId == offer.productId
                           ? '管理当前订阅'
                           : '前往 Apple 管理套餐变更'
-                      : purchases.canBuy(offer.productId)
-                          ? '通过 Apple 订阅'
-                          : purchases.canRestore && appleProduct == null
-                              ? 'Apple 商品暂不可用'
-                              : purchases.reason),
+                      : purchases.awaitingApple
+                          ? '等待 Apple 确认，勿重复下单'
+                          : purchases.needsRecovery
+                              ? '请先检查购买状态或恢复购买'
+                              : purchases.canBuy(offer.productId)
+                                  ? '通过 Apple 订阅'
+                                  : purchases.canRestore && appleProduct == null
+                                      ? 'Apple 商品暂不可用'
+                                      : purchases.reason),
         ),
       ],
     ));

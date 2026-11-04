@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:ip_lookup_app/main.dart';
 import 'package:ip_lookup_app/models/store_plan.dart';
@@ -366,10 +367,12 @@ void main() {
     addTearDown(controller.dispose);
     store.events.add([purchase(PurchaseStatus.pending)]);
     await flush();
-    expect(controller.busy, isTrue);
+    expect(controller.busy, isFalse);
+    expect(controller.awaitingApple, isTrue);
     store.events.add([purchase(PurchaseStatus.canceled)]);
     await flush();
     expect(controller.busy, isFalse);
+    expect(controller.awaitingApple, isFalse);
     expect(verifies, 0);
     expect(store.completions, 0);
   });
@@ -385,16 +388,133 @@ void main() {
     expect(controller.message, isNot(contains('套餐已更新')));
     expect(store.completions, 0);
   });
+
+  test('cancelled and failed checkout can be retried without granting access',
+      () async {
+    final store = _Store();
+    final controller = make(store);
+    addTearDown(controller.dispose);
+    await controller.load([plan]);
+    await controller.buy('isolated.monthly');
+    store.events.add([purchase(PurchaseStatus.canceled)]);
+    await flush();
+    expect(controller.canBuy('isolated.monthly'), isTrue);
+    await controller.buy('isolated.monthly');
+    store.events.add([purchase(PurchaseStatus.error)]);
+    await flush();
+    expect(controller.canBuy('isolated.monthly'), isTrue);
+    expect(store.buyCalls, 2);
+    expect(store.completions, 0);
+  });
+
+  test('real pending approval never times out into a new purchase', () async {
+    final store = _Store();
+    final controller = make(store);
+    addTearDown(controller.dispose);
+    await controller.load([plan]);
+    store.events.add([purchase(PurchaseStatus.pending)]);
+    await flush();
+    expect(controller.canRestore, isTrue);
+    await controller.checkPurchases();
+    await controller.buy('isolated.monthly');
+    expect(controller.awaitingApple, isTrue);
+    expect(controller.busy, isFalse);
+    expect(store.buyCalls, 0);
+    expect(store.completions, 0);
+  });
+
+  test(
+      'duplicate native transaction recovers original, never auto charges again',
+      () async {
+    final store = _Store();
+    Map<String, dynamic>? subscription;
+    final gate = Completer<Map<String, dynamic>>();
+    final controller = make(store,
+        status: (_) async => {
+              'purchase_enabled': true,
+              'restore_enabled': true,
+              'subscription': subscription
+            },
+        verify: (_, __) async {
+          final result = await gate.future;
+          subscription = activeSubscription;
+          return result;
+        });
+    addTearDown(controller.dispose);
+    await controller.load([plan]);
+    store.unfinishedRecords = [purchase()];
+    store.buyError =
+        PlatformException(code: 'storekit_duplicate_product_object');
+    final attempt = controller.buy('isolated.monthly');
+    await flush();
+    expect(store.completions, 0);
+    gate.complete({
+      'acknowledged': true,
+      'active': true,
+      'subscription': activeSubscription
+    });
+    await attempt;
+    expect(store.completions, 1);
+    expect(store.buyCalls, 1);
+    expect(controller.currentSubscription?.active, isTrue);
+    expect(controller.canBuy('isolated.monthly'), isFalse);
+  });
+
+  test(
+      'unfinished scan after relaunch never finishes an unacknowledged payment',
+      () async {
+    final store = _Store()..unfinishedRecords = [purchase()];
+    final controller = make(store,
+        verify: (_, __) async => throw StateError('isolated verify outage'));
+    addTearDown(controller.dispose);
+    await controller.load([plan]);
+    expect(store.completions, 0);
+    expect(controller.needsRecovery, isTrue);
+    expect(controller.canBuy('isolated.monthly'), isFalse);
+  });
+
+  test('scan outage blocks new payment until a successful recovery check',
+      () async {
+    final store = _Store()..failScan = true;
+    final controller = make(store);
+    addTearDown(controller.dispose);
+    await controller.load([plan]);
+    expect(controller.canBuy('isolated.monthly'), isFalse);
+    store.failScan = false;
+    await controller.checkPurchases();
+    expect(controller.canBuy('isolated.monthly'), isTrue);
+  });
+
+  test('long checkout unlocks status actions, not a duplicate payment',
+      () async {
+    final store = _Store();
+    final controller =
+        make(store, checkoutWait: const Duration(milliseconds: 20));
+    addTearDown(controller.dispose);
+    await controller.load([plan]);
+    await controller.buy('isolated.monthly');
+    await Future<void>.delayed(const Duration(milliseconds: 35));
+    expect(controller.busy, isFalse);
+    expect(controller.canRestore, isTrue);
+    expect(controller.awaitingApple, isTrue);
+    expect(controller.canBuy('isolated.monthly'), isFalse);
+    store.events.add([purchase(PurchaseStatus.canceled)]);
+    await flush();
+    expect(controller.canBuy('isolated.monthly'), isTrue);
+    expect(store.completions, 0);
+  });
 }
 
 ApplePurchaseController make(AppleStoreGateway store,
         {bool enabled = true,
         String Function()? session,
+        Duration checkoutWait = const Duration(seconds: 90),
         Future<Map<String, dynamic>> Function(String, String)? prepare,
         Future<Map<String, dynamic>> Function(String)? status,
         Future<Map<String, dynamic>> Function(String, String)? verify}) =>
     ApplePurchaseController(
         store: store,
+        checkoutWait: checkoutWait,
         session: session ?? () => 'isolated-session',
         statusRequest: status ??
             (_) async =>
@@ -412,6 +532,9 @@ class _Store implements AppleStoreGateway {
   final events = StreamController<List<PurchaseDetails>>.broadcast();
   int completions = 0, buyCalls = 0, restoreCalls = 0;
   String? accountToken;
+  List<PurchaseDetails> unfinishedRecords = [];
+  Object? buyError;
+  bool failScan = false;
   @override
   bool get supported => true;
   @override
@@ -433,8 +556,15 @@ class _Store implements AppleStoreGateway {
   @override
   Future<bool> buy(ProductDetails product, String token) async {
     buyCalls++;
+    if (buyError != null) throw buyError!;
     accountToken = token;
     return true;
+  }
+
+  @override
+  Future<List<PurchaseDetails>> unfinished() async {
+    if (failScan) throw StateError('isolated scan outage');
+    return unfinishedRecords.toList();
   }
 
   @override
@@ -445,6 +575,7 @@ class _Store implements AppleStoreGateway {
   @override
   Future<void> complete(PurchaseDetails purchase) async {
     completions++;
+    unfinishedRecords.removeWhere((p) => p.purchaseID == purchase.purchaseID);
   }
 }
 
