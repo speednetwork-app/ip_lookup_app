@@ -6,6 +6,7 @@ import '../models/traffic_trend.dart';
 import '../models/network_node.dart';
 import '../models/mobile_vpn_config.dart';
 import '../models/registration_config.dart';
+import '../models/store_plan.dart';
 
 class AuthException implements Exception {
   const AuthException(this.message, {this.isUnauthorized = false});
@@ -37,6 +38,71 @@ class AuthService {
             );
 
   final Dio _dio;
+
+  Future<Map<String, dynamic>> getAppleIapStatus(String token) =>
+      _appleIapRequest(token, '/status');
+
+  Future<Map<String, dynamic>> prepareApplePurchase(
+          String token, String productId) =>
+      _appleIapRequest(token, '/prepare', data: {'product_id': productId});
+
+  Future<Map<String, dynamic>> verifyApplePurchase(
+          String token, String signed) =>
+      _appleIapRequest(token, '/verify', data: {'signed_transaction': signed});
+
+  Future<Map<String, dynamic>> _appleIapRequest(String token, String path,
+      {Map<String, dynamic>? data}) async {
+    try {
+      final options = Options(
+        headers: {'Authorization': _bearer(token)},
+        receiveTimeout: const Duration(seconds: 60),
+      );
+      final response = data == null
+          ? await _dio.get<dynamic>('/user/apple/iap$path', options: options)
+          : await _dio.post<dynamic>('/user/apple/iap$path',
+              data: data, options: options);
+      final body = _asMap(response.data);
+      if (body['status'] != 'success' || body['data'] is! Map) {
+        throw const AuthException('Apple 购买服务暂不可用，请稍后重试');
+      }
+      return Map<String, dynamic>.from(body['data'] as Map);
+    } on AuthException {
+      rethrow;
+    } on DioException catch (error) {
+      throw _friendlyDioError(error);
+    } catch (_) {
+      throw const AuthException('Apple 购买尚未验证完成，请稍后重试');
+    }
+  }
+
+  Future<List<StorePlan>> getApplePlans(String token) async {
+    try {
+      final response = await _dio.get<dynamic>(
+        '/user/apple/plan/fetch',
+        options: Options(headers: {'Authorization': _bearer(token)}),
+        queryParameters: {
+          'sales_channel': 'apple',
+          't': DateTime.now().millisecondsSinceEpoch
+        },
+      );
+      final body = _asMap(response.data);
+      if (body['status'] != 'success' || body['data'] is! List) {
+        throw const AuthException('获取商城套餐失败，请重试');
+      }
+      return (body['data'] as List)
+          .whereType<Map>()
+          .map((item) =>
+              StorePlan.fromAppleJson(Map<String, dynamic>.from(item)))
+          .whereType<StorePlan>()
+          .toList(growable: false);
+    } on AuthException {
+      rethrow;
+    } on DioException catch (error) {
+      throw _friendlyDioError(error);
+    } catch (_) {
+      throw const AuthException('获取商城套餐失败，请稍后重试');
+    }
+  }
 
   Future<RegistrationConfig> getRegistrationConfig() async {
     final body = await _registrationRequest('/guest/comm/config');

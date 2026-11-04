@@ -1,0 +1,292 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
+import 'package:in_app_purchase/in_app_purchase.dart';
+
+import '../models/store_plan.dart';
+
+abstract class AppleStoreGateway {
+  bool get supported;
+  Stream<List<PurchaseDetails>> get updates;
+  Future<bool> available();
+  Future<ProductDetailsResponse> products(Set<String> ids);
+  Future<bool> buy(ProductDetails product, String accountToken);
+  Future<void> restore();
+  Future<void> complete(PurchaseDetails purchase);
+}
+
+class NativeAppleStoreGateway implements AppleStoreGateway {
+  @override
+  bool get supported => !kIsWeb && defaultTargetPlatform == TargetPlatform.iOS;
+  InAppPurchase get _store => InAppPurchase.instance;
+  @override
+  Stream<List<PurchaseDetails>> get updates => _store.purchaseStream;
+  @override
+  Future<bool> available() => _store.isAvailable();
+  @override
+  Future<ProductDetailsResponse> products(Set<String> ids) =>
+      _store.queryProductDetails(ids);
+  @override
+  Future<bool> buy(ProductDetails product, String accountToken) =>
+      _store.buyNonConsumable(
+          purchaseParam: PurchaseParam(
+              productDetails: product, applicationUserName: accountToken));
+  @override
+  Future<void> restore() => _store.restorePurchases();
+  @override
+  Future<void> complete(PurchaseDetails purchase) =>
+      _store.completePurchase(purchase);
+}
+
+/// StoreKit delivers transactions; only the authenticated backend grants access.
+/// Never logs/persists JWS or appAccountToken. Native unfinished transactions
+/// remain the durable retry queue until server acknowledgement and completion.
+class ApplePurchaseController extends ChangeNotifier {
+  ApplePurchaseController({
+    required this.session,
+    required this.statusRequest,
+    required this.prepareRequest,
+    required this.verifyRequest,
+    required this.onEntitled,
+    AppleStoreGateway? store,
+  }) : _store = store ?? NativeAppleStoreGateway() {
+    if (_store.supported) {
+      _subscription = _store.updates
+          .listen(_enqueue, onError: (_) => _setError('Apple 购买状态暂不可用，请稍后重试'));
+    }
+  }
+
+  final String Function() session;
+  final Future<Map<String, dynamic>> Function(String session) statusRequest;
+  final Future<Map<String, dynamic>> Function(String session, String productId)
+      prepareRequest;
+  final Future<Map<String, dynamic>> Function(String session, String signed)
+      verifyRequest;
+  final Future<void> Function() onEntitled;
+  final AppleStoreGateway _store;
+  StreamSubscription<List<PurchaseDetails>>? _subscription;
+  final Map<String, ProductDetails> _products = {};
+  final Map<String, PurchaseDetails> _unfinished = {};
+  Future<void> _queue = Future.value();
+  int _generation = 0;
+  bool _disposed = false;
+  bool _enabled = false;
+  bool _restoreEnabled = false;
+  bool _available = false;
+  bool _busy = false;
+  String _reason = 'Apple 购买暂未开放';
+  String _error = '';
+  String _message = '';
+
+  bool get supported => _store.supported;
+  bool get busy => _busy;
+  bool get canRestore => supported && _available && _restoreEnabled && !_busy;
+  String get error => _error;
+  String get message => _message;
+  String get reason => _reason;
+  ProductDetails? product(String? id) => _products[id];
+  bool canBuy(String? id) =>
+      supported &&
+      _available &&
+      _enabled &&
+      !_busy &&
+      id != null &&
+      _products.containsKey(id);
+
+  bool _current(String key, int generation) =>
+      !_disposed &&
+      session() == key &&
+      key.isNotEmpty &&
+      _generation == generation;
+  void _notify() {
+    if (!_disposed) notifyListeners();
+  }
+
+  void _setError(String message) {
+    _error = message;
+    _busy = false;
+    _notify();
+  }
+
+  void sessionChanged() {
+    _generation++;
+    _products.clear();
+    _enabled = false;
+    _restoreEnabled = false;
+    _available = false;
+    _busy = false;
+    _error = '';
+    _message = '';
+    _reason = 'Apple 购买暂未开放';
+    _notify();
+  }
+
+  Future<void> load(List<StorePlan> plans) async {
+    if (!supported || session().isEmpty || _disposed) return;
+    final key = session(), generation = _generation;
+    try {
+      final status = await statusRequest(key);
+      if (!_current(key, generation)) return;
+      _enabled = status['purchase_enabled'] == true;
+      _restoreEnabled = status['restore_enabled'] == true;
+      _reason = status['reason'] is String
+          ? status['reason'] as String
+          : 'Apple 购买暂未开放';
+      _available = await _store.available();
+      if (!_current(key, generation)) return;
+      final ids = plans
+          .expand((p) => p.offers)
+          .map((o) => o.productId)
+          .whereType<String>()
+          .toSet();
+      if (_available && ids.isNotEmpty) {
+        final response = await _store.products(ids);
+        if (!_current(key, generation)) return;
+        _products.clear();
+        if (response.error != null) {
+          _error = 'Apple 商品价格暂未加载，请稍后刷新';
+        } else {
+          for (final p in response.productDetails) {
+            if (ids.contains(p.id)) _products[p.id] = p;
+          }
+        }
+      }
+      _notify();
+      if (_restoreEnabled && _unfinished.isNotEmpty) {
+        _enqueue(_unfinished.values.toList());
+      }
+    } catch (_) {
+      if (_current(key, generation)) {
+        _enabled = false;
+        _restoreEnabled = false;
+        _setError('Apple 购买服务暂不可用，请稍后刷新');
+      }
+    }
+  }
+
+  Future<void> buy(String productId) async {
+    if (!canBuy(productId)) return;
+    final key = session(), generation = _generation;
+    _busy = true;
+    _error = '';
+    _message = '';
+    _notify();
+    try {
+      final intent = await prepareRequest(key, productId);
+      if (!_current(key, generation)) return;
+      final accountToken = intent['app_account_token'];
+      if (intent['product_id'] != productId ||
+          accountToken is! String ||
+          !RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$')
+              .hasMatch(accountToken)) {
+        throw StateError('Invalid purchase intent');
+      }
+      if (!await _store.buy(_products[productId]!, accountToken)) {
+        if (_current(key, generation)) _setError('未能打开 Apple 购买，请稍后重试');
+      }
+    } catch (_) {
+      if (_current(key, generation)) _setError('购买未完成，请稍后重试或恢复购买');
+    }
+  }
+
+  Future<void> restore() async {
+    if (!canRestore) return;
+    final key = session(), generation = _generation;
+    _busy = true;
+    _error = '';
+    _message = '正在向 Apple 查询购买记录…';
+    _notify();
+    try {
+      await _store.restore();
+      await _queue;
+      if (_current(key, generation)) {
+        _busy = false;
+        if (_message == '正在向 Apple 查询购买记录…') {
+          _message = 'Apple 恢复查询已结束；有可恢复的记录时将验证并更新套餐。';
+        }
+        _notify();
+      }
+    } catch (_) {
+      if (_current(key, generation)) _setError('恢复购买失败，请稍后重试');
+    }
+  }
+
+  void _enqueue(List<PurchaseDetails> updates) {
+    _queue = _queue.then((_) async {
+      for (final purchase in updates) {
+        if (_disposed) return;
+        await _handle(purchase);
+      }
+    }).catchError((Object _) {
+      if (!_disposed) _setError('购买验证尚未完成，请稍后恢复购买');
+    });
+  }
+
+  Future<void> _handle(PurchaseDetails purchase) async {
+    if (purchase.status == PurchaseStatus.pending) {
+      _busy = true;
+      _message = '等待 Apple 确认购买…';
+      _notify();
+      return;
+    }
+    if (purchase.status == PurchaseStatus.canceled) {
+      _busy = false;
+      _message = '已取消购买，套餐未变更';
+      _notify();
+      return;
+    }
+    if (purchase.status == PurchaseStatus.error) {
+      _setError('Apple 购买未完成，请重试或恢复购买');
+      return;
+    }
+    if (purchase.status != PurchaseStatus.purchased &&
+        purchase.status != PurchaseStatus.restored) {
+      return;
+    }
+    final id = purchase.purchaseID;
+    if (id == null || id.isEmpty) {
+      _setError('购买信息不完整，请恢复购买');
+      return;
+    }
+    _unfinished[id] = purchase;
+    final key = session(), generation = _generation;
+    if (key.isEmpty) {
+      return; // Retry only when an authenticated account is present.
+    }
+    final signed = purchase.verificationData.serverVerificationData;
+    if (signed.split('.').length != 3) {
+      _setError('购买凭证暂不可用，请在 iPhone 上恢复购买');
+      return;
+    }
+    _busy = true;
+    _message = '正在验证 Apple 购买…';
+    _notify();
+    try {
+      final result = await verifyRequest(key, signed);
+      if (!_current(key, generation)) return;
+      if (result['acknowledged'] != true) throw StateError('Not acknowledged');
+      if (purchase.pendingCompletePurchase) await _store.complete(purchase);
+      if (!_current(key, generation)) return;
+      _unfinished.remove(id);
+      await onEntitled();
+      if (!_current(key, generation)) return;
+      _busy = false;
+      _error = '';
+      _message =
+          result['active'] == true ? '购买已验证，套餐已更新' : '购买记录已验证，当前没有有效的订阅权益';
+      _notify();
+    } catch (_) {
+      if (_current(key, generation)) _setError('购买尚未验证完成，请使用原皮卡云账号稍后恢复购买');
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _generation++;
+    _subscription?.cancel();
+    _products.clear();
+    _unfinished.clear();
+    super.dispose();
+  }
+}

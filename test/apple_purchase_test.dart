@@ -1,0 +1,326 @@
+import 'dart:async';
+
+import 'package:dio/dio.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:in_app_purchase/in_app_purchase.dart';
+import 'package:ip_lookup_app/main.dart';
+import 'package:ip_lookup_app/models/store_plan.dart';
+import 'package:ip_lookup_app/providers/auth_provider.dart';
+import 'package:ip_lookup_app/services/apple_purchase_controller.dart';
+import 'package:ip_lookup_app/services/auth_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+const token = '11111111-2222-4333-8444-555555555555';
+const plan = StorePlan(
+    id: 800,
+    name: 'ISOLATED',
+    trafficGb: 500,
+    speedLimitMbps: null,
+    deviceLimit: null,
+    offers: [
+      StoreOffer(
+          period: StorePeriod.monthly,
+          productId: 'isolated.monthly',
+          usdPriceMinor: 299)
+    ]);
+
+PurchaseDetails purchase([PurchaseStatus status = PurchaseStatus.purchased]) =>
+    PurchaseDetails(
+        purchaseID: '90000001',
+        productID: 'isolated.monthly',
+        verificationData: PurchaseVerificationData(
+            localVerificationData: '',
+            serverVerificationData: 'isolated.signed.fixture',
+            source: 'app_store'),
+        transactionDate: '123456',
+        status: status)
+      ..pendingCompletePurchase = true;
+
+Future<void> flush() async {
+  for (var i = 0; i < 8; i++) {
+    await Future<void>.delayed(Duration.zero);
+  }
+}
+
+void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  for (final currency in ['USD', 'EUR']) {
+    testWidgets('store distinguishes live Apple quote from USD list: $currency',
+        (tester) async {
+      final controller = make(_Store(quote: 4.99, currency: currency));
+      addTearDown(controller.dispose);
+      await controller.load([plan]);
+      await tester.pumpWidget(MyApp(authProvider: _UiAuth(controller)));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('商城').last);
+      await tester.pumpAndSettle();
+      if (currency == 'USD') {
+        expect(find.text('\$4.99 / 月'), findsOneWidget);
+        expect(find.text('\$2.99 / 月'), findsNothing);
+        expect(find.textContaining('US\$'), findsNothing);
+      } else {
+        expect(find.text('\$2.99 / 月'), findsOneWidget);
+        expect(find.text('Apple 结算价：€4.99 / 月'), findsOneWidget);
+      }
+      expect(find.text('恢复购买'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+  test('Apple API uses authenticated endpoints, never sends a client price',
+      () async {
+    final calls = <RequestOptions>[];
+    final dio = Dio();
+    dio.interceptors.add(InterceptorsWrapper(onRequest: (request, handler) {
+      calls.add(request);
+      handler.resolve(Response(requestOptions: request, data: {
+        'status': 'success',
+        'data': {'acknowledged': true}
+      }));
+    }));
+    final api = AuthService(dio: dio);
+    await api.getAppleIapStatus('session-only-fixture');
+    await api.prepareApplePurchase('session-only-fixture', 'isolated.monthly');
+    await api.verifyApplePurchase(
+        'session-only-fixture', 'isolated.signed.fixture');
+    expect(calls.map((r) => r.path), [
+      '/user/apple/iap/status',
+      '/user/apple/iap/prepare',
+      '/user/apple/iap/verify'
+    ]);
+    expect(calls.map((r) => r.method), ['GET', 'POST', 'POST']);
+    expect(
+        calls.every(
+            (r) => r.headers['Authorization'] == 'Bearer session-only-fixture'),
+        isTrue);
+    expect(calls[1].data, {'product_id': 'isolated.monthly'});
+    expect(calls[2].data, {'signed_transaction': 'isolated.signed.fixture'});
+  });
+
+  test('purchase stays closed when backend flag is off', () async {
+    final store = _Store();
+    final controller = make(store, enabled: false);
+    addTearDown(controller.dispose);
+    await controller.load([plan]);
+    await controller.buy('isolated.monthly');
+    expect(controller.canBuy('isolated.monthly'), isFalse);
+    expect(store.buyCalls, 0);
+    expect(store.completions, 0);
+  });
+
+  test('only server issued UUID is passed to Apple purchase', () async {
+    final store = _Store();
+    final controller = make(store);
+    addTearDown(controller.dispose);
+    await controller.load([plan]);
+    await controller.buy('isolated.monthly');
+    expect(store.accountToken, token);
+    expect(store.buyCalls, 1);
+    expect(controller.busy, isTrue);
+    expect(store.completions, 0);
+  });
+
+  test(
+      'unknown products and invalid server account token cannot start purchase',
+      () async {
+    final store = _Store();
+    final controller = make(store,
+        prepare: (_, __) async => {
+              'product_id': 'isolated.monthly',
+              'app_account_token': 'not-a-uuid'
+            });
+    addTearDown(controller.dispose);
+    await controller.load([plan]);
+    await controller.buy('unknown');
+    await controller.buy('isolated.monthly');
+    expect(store.buyCalls, 0);
+    expect(controller.error, isNotEmpty);
+  });
+
+  for (final status in [PurchaseStatus.purchased, PurchaseStatus.restored]) {
+    test('completes $status only after durable server acknowledgement',
+        () async {
+      final store = _Store();
+      final gate = Completer<Map<String, dynamic>>();
+      final controller = make(store, verify: (_, __) => gate.future);
+      addTearDown(controller.dispose);
+      store.events.add([purchase(status)]);
+      await flush();
+      expect(store.completions, 0);
+      gate.complete({'acknowledged': true, 'active': true});
+      await flush();
+      expect(store.completions, 1);
+      expect(controller.message, contains('套餐已更新'));
+    });
+  }
+
+  test('verification failure leaves transaction unfinished for retry',
+      () async {
+    final store = _Store();
+    var available = false;
+    final controller = make(store, verify: (_, __) async {
+      if (!available) throw StateError('isolated outage');
+      return {'acknowledged': true, 'active': true};
+    });
+    addTearDown(controller.dispose);
+    store.events.add([purchase()]);
+    await flush();
+    expect(store.completions, 0);
+    expect(controller.error, isNotEmpty);
+    available = true;
+    store.events.add([purchase(PurchaseStatus.restored)]);
+    await flush();
+    expect(store.completions, 1);
+  });
+
+  test('unacknowledged server response never finishes transaction', () async {
+    final store = _Store();
+    final controller = make(store, verify: (_, __) async => {'active': true});
+    addTearDown(controller.dispose);
+    store.events.add([purchase()]);
+    await flush();
+    expect(store.completions, 0);
+  });
+
+  test(
+      'logout during verification cannot finish or report success to another account',
+      () async {
+    final store = _Store();
+    var session = 'original-session';
+    final gate = Completer<Map<String, dynamic>>();
+    final controller =
+        make(store, session: () => session, verify: (_, __) => gate.future);
+    addTearDown(controller.dispose);
+    store.events.add([purchase()]);
+    await flush();
+    session = 'different-session';
+    controller.sessionChanged();
+    gate.complete({'acknowledged': true, 'active': true});
+    await flush();
+    expect(store.completions, 0);
+    expect(controller.message, isEmpty);
+  });
+
+  test('disposed controller ignores late verifier result', () async {
+    final store = _Store();
+    final gate = Completer<Map<String, dynamic>>();
+    final controller = make(store, verify: (_, __) => gate.future);
+    store.events.add([purchase()]);
+    await flush();
+    controller.dispose();
+    gate.complete({'acknowledged': true, 'active': true});
+    await flush();
+    expect(store.completions, 0);
+  });
+
+  test('pending and cancelled events never grant or finish purchases',
+      () async {
+    final store = _Store();
+    var verifies = 0;
+    final controller = make(store, verify: (_, __) async {
+      verifies++;
+      return {'acknowledged': true};
+    });
+    addTearDown(controller.dispose);
+    store.events.add([purchase(PurchaseStatus.pending)]);
+    await flush();
+    expect(controller.busy, isTrue);
+    store.events.add([purchase(PurchaseStatus.canceled)]);
+    await flush();
+    expect(controller.busy, isFalse);
+    expect(verifies, 0);
+    expect(store.completions, 0);
+  });
+
+  test('restore request without transactions does not claim restored access',
+      () async {
+    final store = _Store();
+    final controller = make(store);
+    addTearDown(controller.dispose);
+    await controller.load([plan]);
+    await controller.restore();
+    expect(store.restoreCalls, 1);
+    expect(controller.message, isNot(contains('套餐已更新')));
+    expect(store.completions, 0);
+  });
+}
+
+ApplePurchaseController make(AppleStoreGateway store,
+        {bool enabled = true,
+        String Function()? session,
+        Future<Map<String, dynamic>> Function(String, String)? prepare,
+        Future<Map<String, dynamic>> Function(String, String)? verify}) =>
+    ApplePurchaseController(
+        store: store,
+        session: session ?? () => 'isolated-session',
+        statusRequest: (_) async =>
+            {'purchase_enabled': enabled, 'restore_enabled': enabled},
+        prepareRequest: prepare ??
+            (_, id) async => {'product_id': id, 'app_account_token': token},
+        verifyRequest:
+            verify ?? (_, __) async => {'acknowledged': true, 'active': true},
+        onEntitled: () async {});
+
+class _Store implements AppleStoreGateway {
+  _Store({this.quote = 2.99, this.currency = 'USD'});
+  final double quote;
+  final String currency;
+  final events = StreamController<List<PurchaseDetails>>.broadcast();
+  int completions = 0, buyCalls = 0, restoreCalls = 0;
+  String? accountToken;
+  @override
+  bool get supported => true;
+  @override
+  Stream<List<PurchaseDetails>> get updates => events.stream;
+  @override
+  Future<bool> available() async => true;
+  @override
+  Future<ProductDetailsResponse> products(Set<String> ids) async =>
+      ProductDetailsResponse(productDetails: [
+        ProductDetails(
+            id: 'isolated.monthly',
+            title: 'ISOLATED',
+            description: 'ISOLATED',
+            price:
+                '${currency == 'USD' ? '\$' : '€'}${quote.toStringAsFixed(2)}',
+            rawPrice: quote,
+            currencyCode: currency)
+      ], notFoundIDs: []);
+  @override
+  Future<bool> buy(ProductDetails product, String token) async {
+    buyCalls++;
+    accountToken = token;
+    return true;
+  }
+
+  @override
+  Future<void> restore() async {
+    restoreCalls++;
+  }
+
+  @override
+  Future<void> complete(PurchaseDetails purchase) async {
+    completions++;
+  }
+}
+
+class _UiAuth extends AuthProvider {
+  _UiAuth(this.controller);
+  final ApplePurchaseController controller;
+  @override
+  ApplePurchaseController get applePurchases => controller;
+  @override
+  AuthStatus get status => AuthStatus.signedIn;
+  @override
+  bool get isSignedIn => true;
+  @override
+  List<StorePlan> get storePlans => [plan];
+  @override
+  bool get storeLoaded => true;
+  @override
+  Future<void> initialize() async {}
+  @override
+  Future<void> initializeVpn() async {}
+  @override
+  Future<void> refreshStorePlans() async {}
+}

@@ -120,7 +120,7 @@ void main() {
         child: app,
       ));
       await tester.pumpAndSettle();
-      for (final label in ['线路', 'IP 检测', '历史', '我的', '首页']) {
+      for (final label in ['线路', 'IP 检测', '商城', '我的', '首页']) {
         await tester.tap(find.text(label).last);
         await tester.pumpAndSettle();
         expect(tester.takeException(), isNull,

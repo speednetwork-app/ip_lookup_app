@@ -10,7 +10,9 @@ import '../models/account_notice.dart';
 import '../models/traffic_trend.dart';
 import '../models/network_node.dart';
 import '../models/registration_config.dart';
+import '../models/store_plan.dart';
 import '../services/account_cache.dart';
+import '../services/apple_purchase_controller.dart';
 import '../services/auth_service.dart';
 import '../services/session_storage.dart';
 import '../services/vpn_service.dart';
@@ -27,10 +29,27 @@ class AuthProvider with ChangeNotifier {
     SessionStorage? storage,
     AccountCache? cache,
     VpnService? vpnService,
+    AppleStoreGateway? appleStore,
   })  : _service = service ?? AuthService(),
         _storage = storage ?? SecureSessionStorage(),
         _cache = cache ?? SharedPreferencesAccountCache(),
-        _vpnService = vpnService ?? MethodChannelVpnService();
+        _vpnService = vpnService ?? MethodChannelVpnService() {
+    _applePurchases = ApplePurchaseController(
+      session: () => isSignedIn ? _token : '',
+      statusRequest: _service.getAppleIapStatus,
+      prepareRequest: _service.prepareApplePurchase,
+      verifyRequest: _service.verifyApplePurchase,
+      onEntitled: refreshAccountData,
+      store: appleStore,
+    );
+    _applePurchases.addListener(_onApplePurchaseChanged);
+  }
+
+  late final ApplePurchaseController _applePurchases;
+  ApplePurchaseController get applePurchases => _applePurchases;
+  void _onApplePurchaseChanged() {
+    if (!_storeDisposed && _token.isNotEmpty) notifyListeners();
+  }
 
   final AuthService _service;
   final SessionStorage _storage;
@@ -40,6 +59,16 @@ class AuthProvider with ChangeNotifier {
   AuthStatus _status = AuthStatus.initializing;
   String _email = '';
   String _token = '';
+  int _storeRequest = 0;
+  bool _storeDisposed = false;
+  List<StorePlan> _storePlans = const [];
+  bool _storeLoading = false;
+  bool _storeLoaded = false;
+  String _storeError = '';
+  List<StorePlan> get storePlans => _storePlans;
+  bool get storeLoading => _storeLoading;
+  bool get storeLoaded => _storeLoaded;
+  String get storeError => _storeError;
   AccountOverview? _overview;
   String _error = '';
   bool _refreshing = false;
@@ -104,6 +133,9 @@ class AuthProvider with ChangeNotifier {
       await _restoreSafeCache();
       notifyListeners();
       await refreshAccountData();
+      if (!_storeDisposed && isSignedIn && _applePurchases.supported) {
+        unawaited(refreshStorePlans());
+      }
     } catch (_) {
       _status = AuthStatus.signedOut;
       _error = '无法读取安全登录信息，请重新登录';
@@ -160,6 +192,9 @@ class AuthProvider with ChangeNotifier {
       _status = AuthStatus.signedIn;
       notifyListeners();
       await refreshAccountData();
+      if (!_storeDisposed && isSignedIn && _applePurchases.supported) {
+        unawaited(refreshStorePlans());
+      }
       return isSignedIn;
     } on AuthException catch (error) {
       _status = AuthStatus.signedOut;
@@ -270,6 +305,38 @@ class AuthProvider with ChangeNotifier {
     } finally {
       _nodesLoading = false;
       notifyListeners();
+    }
+  }
+
+  Future<void> refreshStorePlans() async {
+    if (_storeDisposed || !isSignedIn || _token.isEmpty || _storeLoading) {
+      return;
+    }
+    final token = _token;
+    final request = ++_storeRequest;
+    _storeLoading = true;
+    _storeError = '';
+    notifyListeners();
+    try {
+      final plans = await _service.getApplePlans(token);
+      if (_token != token || request != _storeRequest || !isSignedIn) return;
+      _storePlans = plans;
+      _storeLoaded = true;
+      await _applePurchases.load(plans);
+    } on AuthException catch (error) {
+      if (_token != token || request != _storeRequest) return;
+      _storeError = error.message;
+      if (error.isUnauthorized) await _handleRefreshError(error);
+    } catch (_) {
+      if (_token != token || request != _storeRequest) return;
+      _storeError = '获取商城套餐失败，请重试';
+    } finally {
+      if (request == _storeRequest) {
+        _storeLoading = false;
+      }
+      // Session expiry invalidates the request as well; still notify the view
+      // about sign-out, but never deliver a callback after provider disposal.
+      if (!_storeDisposed) notifyListeners();
     }
   }
 
@@ -555,7 +622,13 @@ class AuthProvider with ChangeNotifier {
   }
 
   void _clearMemorySession() {
+    _storeRequest++;
+    _storePlans = const [];
+    _storeLoading = false;
+    _storeLoaded = false;
+    _storeError = '';
     _token = '';
+    _applePurchases.sessionChanged();
     _email = '';
     _overview = null;
     _trafficTrends.clear();
@@ -573,6 +646,10 @@ class AuthProvider with ChangeNotifier {
 
   @override
   void dispose() {
+    _storeDisposed = true;
+    _applePurchases.removeListener(_onApplePurchaseChanged);
+    _applePurchases.dispose();
+    _storeRequest++;
     _vpnStatusTimer?.cancel();
     super.dispose();
   }

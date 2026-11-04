@@ -84,6 +84,9 @@ jobs:
       - name: Analyze
         run: flutter analyze
 
+      - name: Verify Flutter application and purchase contracts
+        run: flutter test --no-pub
+
       # 只有发版（打标签）或手动触发时才签名上传，日常 push 只做编译验证
       - name: Decide build and upload mode
         id: mode

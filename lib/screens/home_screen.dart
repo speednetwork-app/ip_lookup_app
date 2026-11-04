@@ -8,6 +8,7 @@ import '../widgets/empty_state.dart';
 import '../widgets/ip_card.dart';
 import 'lookup_screen.dart';
 import 'privacy_screen.dart';
+import 'history_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -22,6 +23,16 @@ class HomeScreen extends StatelessWidget {
           icon: Icons.radar_rounded,
         ),
         actions: [
+          IconButton(
+            tooltip: '查询历史',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                  builder: (historyContext) => HistoryScreen(
+                        onOpenIp: () => Navigator.of(historyContext).pop(),
+                      )),
+            ),
+            icon: const Icon(Icons.history),
+          ),
           IconButton(
             tooltip: '查询指定 IP',
             onPressed: () => Navigator.of(context).push(

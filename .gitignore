@@ -50,3 +50,9 @@ android/app/release
 *.swo
 *~
 .DS_Store
+
+# Apple private keys must never enter the repository.
+*.p8
+.run/apple-iap-venv/
+.run/apple-iap-credentials.json
+server/apple-iap/__pycache__/

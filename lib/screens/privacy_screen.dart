@@ -63,6 +63,14 @@ class PrivacyScreen extends StatelessWidget {
                 '连接期间，设备网络流量会通过所选线路传输；可随时从首页断开。',
           ),
           const SizedBox(height: 16),
+          const _InfoTile(
+            icon: Icons.receipt_long_outlined,
+            title: 'Apple 订阅与购买验证',
+            description: '使用应用内购买时，付款由 Apple 处理。服务器会验证并保存交易标识、商品、有效期'
+                '及与皮卡云账号的关联，用于开通、恢复、续费和退款处理，不会获取银行卡信息。'
+                '年付套餐按购买生效日每月重置额度，不一次发放全年流量。',
+          ),
+          const SizedBox(height: 16),
           Text('我们不会做什么', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 8),
           const Card(
@@ -76,8 +84,8 @@ class PrivacyScreen extends StatelessWidget {
                   _CheckRow(text: '不访问照片、相机或麦克风'),
                   _CheckRow(text: '不申请 GPS 定位权限'),
                   _CheckRow(text: '不包含广告、分析 SDK 或用户追踪'),
-                  _CheckRow(text: '注册不会自动购买套餐，不提供付费或应用内购买'),
-                  _CheckRow(text: '不出售或向第三方披露账号数据、登录凭证和订阅地址'),
+                  _CheckRow(text: '注册不会自动购买套餐；Apple 订阅须由你在系统购买窗口确认'),
+                  _CheckRow(text: '不出售账号数据，不向 Apple 发送皮卡云密码或 VPN 订阅地址'),
                 ],
               ),
             ),

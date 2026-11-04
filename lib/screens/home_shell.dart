@@ -5,9 +5,9 @@ import '../providers/auth_provider.dart';
 import '../providers/history_provider.dart';
 import 'account_screen.dart';
 import 'dashboard_screen.dart';
-import 'history_screen.dart';
 import 'home_screen.dart';
 import 'nodes_screen.dart';
+import 'store_screen.dart';
 
 /// 底部导航外壳。用 IndexedStack 而不是每次重建页面，
 /// 这样切走再切回来时输入框内容和滚动位置都还在。
@@ -55,6 +55,9 @@ class _HomeShellState extends State<HomeShell> {
         Future.microtask(auth.refreshNetworkNodes);
       }
     }
+    if (index == 3) {
+      Future.microtask(context.read<AuthProvider>().refreshStorePlans);
+    }
   }
 
   @override
@@ -88,7 +91,7 @@ class _HomeShellState extends State<HomeShell> {
           ),
           NodesScreen(onOpenAccount: () => _selectTab(4)),
           const HomeScreen(),
-          HistoryScreen(onOpenIp: () => _selectTab(2)),
+          StoreScreen(onOpenAccount: () => _selectTab(4)),
           const AccountScreen(),
         ],
       ),
@@ -112,9 +115,9 @@ class _HomeShellState extends State<HomeShell> {
             label: 'IP 检测',
           ),
           NavigationDestination(
-            icon: Icon(Icons.history_outlined),
-            selectedIcon: Icon(Icons.history),
-            label: '历史',
+            icon: Icon(Icons.storefront_outlined),
+            selectedIcon: Icon(Icons.storefront),
+            label: '商城',
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline),
