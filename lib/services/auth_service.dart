@@ -9,10 +9,11 @@ import '../models/registration_config.dart';
 import '../models/store_plan.dart';
 
 class AuthException implements Exception {
-  const AuthException(this.message, {this.isUnauthorized = false});
+  const AuthException(this.message, {this.isUnauthorized = false, this.code});
 
   final String message;
   final bool isUnauthorized;
+  final String? code;
 
   @override
   String toString() => message;
@@ -69,6 +70,13 @@ class AuthService {
     } on AuthException {
       rethrow;
     } on DioException catch (error) {
+      if (error.response?.statusCode == 409 &&
+          _asMap(error.response?.data)['error_code'] ==
+              'APPLE_ACCOUNT_MISMATCH') {
+        throw const AuthException(
+            '此 Apple 购买记录与当前皮卡云账号不匹配。请切回原购买账号恢复；取消自动续订不会转移订单。',
+            code: 'APPLE_ACCOUNT_MISMATCH');
+      }
       throw _friendlyDioError(error);
     } catch (_) {
       throw const AuthException('Apple 购买尚未验证完成，请稍后重试');

@@ -7,5 +7,5 @@ abstract final class AppBrand {
   static const markAsset = 'assets/branding/pikayun_brand_mark.png';
   static const supportEmail = 'info@robinads.agency';
   static const version = '1.6.3';
-  static const buildNumber = '20';
+  static const buildNumber = '21';
 }

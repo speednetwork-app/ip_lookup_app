@@ -84,8 +84,7 @@ class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed &&
         _auth.isSignedIn &&
-        _auth.applePurchases.supported &&
-        !_auth.applePurchases.busy) {
+        _auth.applePurchases.supported) {
       _refreshSubscription();
     }
   }

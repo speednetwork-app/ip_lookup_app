@@ -8,6 +8,7 @@ import 'package:in_app_purchase_storekit/store_kit_2_wrappers.dart';
 
 import '../models/store_plan.dart';
 import '../models/apple_subscription.dart';
+import 'auth_service.dart';
 
 abstract class AppleStoreGateway {
   bool get supported;
@@ -18,6 +19,7 @@ abstract class AppleStoreGateway {
   Future<void> restore();
   Future<void> complete(PurchaseDetails purchase);
   Future<List<PurchaseDetails>> unfinished();
+  Future<void> manageSubscriptions();
 }
 
 class NativeAppleStoreGateway implements AppleStoreGateway {
@@ -38,6 +40,8 @@ class NativeAppleStoreGateway implements AppleStoreGateway {
               productDetails: product, applicationUserName: accountToken));
   @override
   Future<void> restore() => _store.restorePurchases();
+  @override
+  Future<void> manageSubscriptions() => AppStore().showManageSubscriptions();
   @override
   Future<void> complete(PurchaseDetails purchase) =>
       _store.completePurchase(purchase);
@@ -73,6 +77,8 @@ class ApplePurchaseController extends ChangeNotifier {
     required this.onEntitled,
     AppleStoreGateway? store,
     this.checkoutWait = const Duration(seconds: 90),
+    this.verificationWait = const Duration(seconds: 65),
+    this.operationWait = const Duration(seconds: 20),
   }) : _store = store ?? NativeAppleStoreGateway() {
     if (_store.supported) {
       _subscription = _store.updates
@@ -89,6 +95,9 @@ class ApplePurchaseController extends ChangeNotifier {
   final Future<void> Function() onEntitled;
   final AppleStoreGateway _store;
   final Duration checkoutWait;
+  final Duration verificationWait, operationWait;
+  bool _managing = false;
+  final Set<String> _mismatchedReceipts = {};
   Timer? _checkoutTimer;
   bool _awaitingCheckout = false;
   final Set<String> _pendingProducts = {};
@@ -116,7 +125,10 @@ class ApplePurchaseController extends ChangeNotifier {
   bool get busy => _busy || _recovering;
   bool get awaitingApple => _awaitingCheckout || _pendingProducts.isNotEmpty;
   bool get needsRecovery => _unfinished.isNotEmpty || _recoveryFailed;
-  bool get canRestore => supported && _available && _restoreEnabled && !busy;
+  bool get accountMismatch => _mismatchedReceipts.isNotEmpty;
+  bool get canManage => supported && _available && !_managing;
+  bool get configured => supported && _available && _restoreEnabled;
+  bool get canRestore => configured && !busy;
   String get error => _error;
   String get message => _message;
   String get reason => _reason;
@@ -127,6 +139,7 @@ class ApplePurchaseController extends ChangeNotifier {
       _enabled &&
       _currentSubscription?.active != true &&
       !busy &&
+      !_managing &&
       !awaitingApple &&
       !needsRecovery &&
       id != null &&
@@ -143,6 +156,7 @@ class ApplePurchaseController extends ChangeNotifier {
 
   void _setError(String message) {
     _error = message;
+    _message = '';
     _busy = false;
     _notify();
   }
@@ -153,6 +167,7 @@ class ApplePurchaseController extends ChangeNotifier {
     _checkoutTimer?.cancel();
     _awaitingCheckout = false;
     _pendingProducts.clear();
+    _mismatchedReceipts.clear();
     _recoveryFailed = supported;
     _products.clear();
     _currentSubscription = null;
@@ -171,7 +186,7 @@ class ApplePurchaseController extends ChangeNotifier {
     final key = session(), generation = _generation;
     final epoch = _statusEpoch;
     try {
-      final status = await statusRequest(key);
+      final status = await statusRequest(key).timeout(operationWait);
       if (!_current(key, generation) || epoch != _statusEpoch) return;
       _enabled = status['purchase_enabled'] == true;
       _restoreEnabled = status['restore_enabled'] == true;
@@ -217,13 +232,13 @@ class ApplePurchaseController extends ChangeNotifier {
     final epoch = _statusEpoch;
     _statusLoading = true;
     try {
-      final status = await statusRequest(key);
+      final status = await statusRequest(key).timeout(operationWait);
       if (!_current(key, generation) || epoch != _statusEpoch) return;
       _currentSubscription = AppleSubscription.parse(status['subscription']);
       _enabled = status['purchase_enabled'] == true;
       _restoreEnabled = status['restore_enabled'] == true;
       _reason = status['reason'] as String? ?? 'Apple 购买暂未开放';
-      _error = '';
+      if (!needsRecovery) _error = '';
     } catch (_) {
       if (_current(key, generation) && epoch == _statusEpoch) {
         _enabled = false;
@@ -308,11 +323,18 @@ class ApplePurchaseController extends ChangeNotifier {
         for (final p in native)
           if (p.purchaseID != null) p.purchaseID!: p
       };
-      if (records.isNotEmpty) await _enqueue(records.values.toList());
+      final retryable = records.values
+          .where((p) => !_mismatchedReceipts.contains(p.purchaseID))
+          .toList();
+      if (retryable.isNotEmpty) await _enqueue(retryable);
+      if (!_current(key, generation)) return;
+      if (accountMismatch) {
+        _setError('此 Apple 购买记录与当前皮卡云账号不匹配。请切回原购买账号恢复；取消自动续订不会转移订单。');
+      }
     } catch (_) {
       if (_current(key, generation)) {
         _recoveryFailed = true;
-        _error = 'Apple 未完成交易检查失败，请检查购买状态后再下单';
+        _setError('Apple 未完成交易检查失败，请检查购买状态后再下单');
       }
     } finally {
       _recovering = false;
@@ -344,17 +366,48 @@ class ApplePurchaseController extends ChangeNotifier {
     try {
       await _recoverUnfinished();
       if (!_current(key, generation)) return;
-      await _store.restore();
+      if (accountMismatch) return;
+      await _store.restore().timeout(operationWait);
       await _queue;
       if (_current(key, generation)) {
         _busy = false;
-        if (_message == '正在向 Apple 查询购买记录…') {
+        if (_error.isEmpty && _message == '正在向 Apple 查询购买记录…') {
           _message = 'Apple 恢复查询已结束；有可恢复的记录时将验证并更新套餐。';
         }
         _notify();
       }
     } catch (_) {
       if (_current(key, generation)) _setError('恢复购买失败，请稍后重试');
+    } finally {
+      if (_current(key, generation)) {
+        _busy = false;
+        _notify();
+      }
+    }
+  }
+
+  /// Native sheet completion provides a return point even when iOS does not
+  /// deliver an app lifecycle transition. Never infers cancellation locally.
+  Future<void> manageSubscriptions() async {
+    if (!canManage) return;
+    final key = session(), generation = _generation;
+    _managing = true;
+    _notify();
+    try {
+      await _store.manageSubscriptions();
+      if (!_current(key, generation)) return;
+      await refreshStatus();
+      if (!_current(key, generation)) return;
+      try {
+        await onEntitled().timeout(operationWait);
+      } catch (_) {}
+    } catch (_) {
+      if (_current(key, generation)) {
+        _setError('暂时无法打开 Apple 订阅管理，请从系统设置的订阅页面管理');
+      }
+    } finally {
+      _managing = false;
+      _notify();
     }
   }
 
@@ -363,6 +416,14 @@ class ApplePurchaseController extends ChangeNotifier {
       for (final purchase in updates) {
         if (_disposed) return;
         await _handle(purchase);
+        // An outage must not turn a batch of old transactions into minutes of
+        // sequential spinning. StoreKit retains the rest for a later retry.
+        if (_error.isNotEmpty &&
+            !accountMismatch &&
+            (purchase.status == PurchaseStatus.purchased ||
+                purchase.status == PurchaseStatus.restored)) {
+          break;
+        }
       }
     }).catchError((Object _) {
       if (!_disposed) _setError('购买验证尚未完成，请稍后恢复购买');
@@ -432,16 +493,21 @@ class ApplePurchaseController extends ChangeNotifier {
     if (key.isEmpty) {
       return; // Retry only when an authenticated account is present.
     }
+    if (_mismatchedReceipts.contains(id)) {
+      _setError('此 Apple 购买记录与当前皮卡云账号不匹配，请切回原购买账号恢复。');
+      return;
+    }
     final signed = purchase.verificationData.serverVerificationData;
     if (signed.split('.').length != 3) {
       _setError('购买凭证暂不可用，请在 iPhone 上恢复购买');
       return;
     }
     _busy = true;
+    _error = '';
     _message = '正在验证 Apple 购买…';
     _notify();
     try {
-      final result = await verifyRequest(key, signed);
+      final result = await verifyRequest(key, signed).timeout(verificationWait);
       if (!_current(key, generation)) return;
       if (result['acknowledged'] != true) throw StateError('Not acknowledged');
       _statusEpoch++;
@@ -449,11 +515,13 @@ class ApplePurchaseController extends ChangeNotifier {
       // account refreshes. A failed refresh must not invite a second purchase.
       _currentSubscription = AppleSubscription.parse(result['subscription']);
       _enabled = false;
-      if (purchase.pendingCompletePurchase) await _store.complete(purchase);
+      if (purchase.pendingCompletePurchase) {
+        await _store.complete(purchase).timeout(operationWait);
+      }
       if (!_current(key, generation)) return;
       _unfinished.remove(id);
       try {
-        await onEntitled();
+        await onEntitled().timeout(operationWait);
       } catch (_) {/* Acknowledged purchase is durable. */}
       await refreshStatus();
       if (!_current(key, generation)) return;
@@ -461,6 +529,15 @@ class ApplePurchaseController extends ChangeNotifier {
       _message =
           result['active'] == true ? '购买已验证，套餐已更新' : '购买记录已验证，当前没有有效的订阅权益';
       _notify();
+    } on AuthException catch (error) {
+      if (_current(key, generation)) {
+        if (error.code == 'APPLE_ACCOUNT_MISMATCH') _mismatchedReceipts.add(id);
+        _setError(error.message);
+      }
+    } on TimeoutException {
+      if (_current(key, generation)) {
+        _setError('购买验证超时，交易已保留，未重复下单。你可以离开商城，稍后检查购买状态。');
+      }
     } catch (_) {
       if (_current(key, generation)) _setError('购买尚未验证完成，请使用原皮卡云账号稍后恢复购买');
     }

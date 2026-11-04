@@ -98,7 +98,7 @@ class StoreScreen extends StatelessWidget {
           Text('iOS 专属套餐', style: theme.textTheme.headlineSmall),
           const SizedBox(height: 8),
           Text(
-              '${!auth.applePurchases.supported ? '当前浏览器或平台仅支持套餐预览，可切换月付／年付。Apple 订阅请在 iPhone 或 iPad App 内操作。' : auth.applePurchases.canRestore ? '订阅由 Apple 管理，月付或年付自动续订，可在系统订阅设置中取消。' : '以下为套餐预览，Apple 应用内购买尚未开放。'}'
+              '${!auth.applePurchases.supported ? '当前浏览器或平台仅支持套餐预览，可切换月付／年付。Apple 订阅请在 iPhone 或 iPad App 内操作。' : auth.applePurchases.configured ? '订阅由 Apple 管理，月付或年付自动续订，可在系统订阅设置中取消。' : '以下为套餐预览，Apple 应用内购买尚未开放。'}'
               '美元标价对应美国区，实际结算币种与金额以 Apple 购买页面为准。',
               style: theme.textTheme.bodySmall
                   ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
@@ -119,6 +119,11 @@ class StoreScreen extends StatelessWidget {
             Text(auth.applePurchases.error,
                 style: TextStyle(color: theme.colorScheme.error)),
             const SizedBox(height: 12),
+            TextButton(
+                onPressed: onOpenAccount,
+                child: Text(auth.applePurchases.accountMismatch
+                    ? '前往我的，切换原购买账号'
+                    : '稍后处理，前往我的')),
           ],
           if (auth.applePurchases.message.isNotEmpty) ...[
             Semantics(
@@ -146,8 +151,9 @@ class StoreScreen extends StatelessWidget {
                 child: const Text('使用条款')),
             if (auth.applePurchases.supported)
               TextButton(
-                  onPressed: () => openLink(
-                      context, 'https://apps.apple.com/account/subscriptions'),
+                  onPressed: auth.applePurchases.canManage
+                      ? auth.applePurchases.manageSubscriptions
+                      : null,
                   child: const Text('管理 Apple 订阅')),
           ]),
         ],
@@ -273,9 +279,9 @@ class _PlanCardState extends State<_PlanCard> {
         FilledButton(
           onPressed: purchases.supported &&
                   subscription?.active == true &&
+                  purchases.canManage &&
                   !purchases.busy
-              ? () => StoreScreen.openLink(
-                  context, 'https://apps.apple.com/account/subscriptions')
+              ? purchases.manageSubscriptions
               : purchases.canBuy(offer.productId)
                   ? () => purchases.buy(offer.productId!)
                   : null,

@@ -310,10 +310,166 @@ void main() {
     await flush();
     expect(store.completions, 0);
     expect(controller.error, isNotEmpty);
+    expect(controller.message, isEmpty);
+    expect(controller.busy, isFalse);
     available = true;
     store.events.add([purchase(PurchaseStatus.restored)]);
     await flush();
     expect(store.completions, 1);
+  });
+
+  test(
+      'verification timeout releases recovery and ignores late acknowledgement',
+      () async {
+    final store = _Store()..unfinishedRecords = [purchase()];
+    final stalled = Completer<Map<String, dynamic>>();
+    var recovered = false;
+    final controller = make(store,
+        verificationWait: const Duration(milliseconds: 15),
+        verify: (_, __) => recovered
+            ? Future.value({'acknowledged': true, 'active': true})
+            : stalled.future);
+    addTearDown(controller.dispose);
+    await controller.load([plan]);
+    expect(controller.busy, isFalse);
+    expect(controller.message, isEmpty);
+    expect(controller.error, contains('超时'));
+    expect(controller.canRestore, isTrue);
+    expect(controller.canBuy('isolated.monthly'), isFalse);
+    stalled.complete({'acknowledged': true, 'active': true});
+    await flush();
+    expect(store.completions, 0);
+    recovered = true;
+    await controller.checkPurchases();
+    expect(store.completions, 1);
+    expect(controller.needsRecovery, isFalse);
+  });
+
+  test('restore timeout ends progress without dropping unfinished transactions',
+      () async {
+    final store = _Store()..restoreAction = () => Completer<void>().future;
+    final controller =
+        make(store, operationWait: const Duration(milliseconds: 15));
+    addTearDown(controller.dispose);
+    await controller.load([plan]);
+    await controller.restore();
+    expect(controller.busy, isFalse);
+    expect(controller.message, isEmpty);
+    expect(controller.error, isNotEmpty);
+    expect(controller.canRestore, isTrue);
+    expect(store.completions, 0);
+    store.events.add([purchase()]);
+    await flush();
+    expect(store.completions, 1);
+  });
+
+  test('foreign-account receipt is retained without futile restore loops',
+      () async {
+    final store = _Store()..unfinishedRecords = [purchase()];
+    var session = 'different-account';
+    var verifies = 0;
+    final controller = make(store,
+        session: () => session,
+        verify: (_, __) async {
+          verifies++;
+          if (session == 'different-account') {
+            throw const AuthException('请切回原购买账号恢复',
+                code: 'APPLE_ACCOUNT_MISMATCH');
+          }
+          return {'acknowledged': true, 'active': true};
+        });
+    addTearDown(controller.dispose);
+    await controller.load([plan]);
+    expect(controller.accountMismatch, isTrue);
+    expect(controller.message, isEmpty);
+    expect(controller.busy, isFalse);
+    await controller.checkPurchases();
+    await controller.restore();
+    expect(verifies, 1);
+    expect(store.restoreCalls, 0);
+    expect(store.completions, 0);
+    expect(controller.error, contains('原购买账号'));
+    expect(controller.canBuy('isolated.monthly'), isFalse);
+    session = 'original-account';
+    controller.sessionChanged();
+    await controller.load([plan]);
+    expect(controller.accountMismatch, isFalse);
+    expect(verifies, 2);
+    expect(store.completions, 1);
+  });
+
+  testWidgets('failed verification offers a working route out of the store',
+      (tester) async {
+    final store = _Store()..unfinishedRecords = [purchase()];
+    final controller = make(store, verify: (_, __) async {
+      throw const AuthException('请切回原购买账号恢复', code: 'APPLE_ACCOUNT_MISMATCH');
+    });
+    addTearDown(controller.dispose);
+    await controller.load([plan]);
+    await tester.pumpWidget(MyApp(authProvider: _UiAuth(controller)));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('商城').last);
+    await tester.pumpAndSettle();
+    expect(find.text('正在验证 Apple 购买…'), findsNothing);
+    await tester.tap(find.text('前往我的，切换原购买账号'));
+    await tester.pumpAndSettle();
+    expect(
+        tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
+        4);
+    expect(store.completions, 0);
+    expect(tester.takeException(), isNull);
+  });
+
+  test(
+      'closing native subscription management refreshes cancellation, not expiry',
+      () async {
+    final store = _Store();
+    var autoRenew = true;
+    store.manageAction = () async {
+      autoRenew = false;
+    };
+    final controller = make(store,
+        status: (_) async => {
+              'purchase_enabled': true,
+              'restore_enabled': true,
+              'subscription': {
+                ...activeSubscription,
+                'auto_renew_enabled': autoRenew
+              },
+            });
+    addTearDown(controller.dispose);
+    await controller.load([plan]);
+    await controller.manageSubscriptions();
+    expect(store.manageCalls, 1);
+    expect(controller.currentSubscription?.autoRenewEnabled, isFalse);
+    expect(controller.currentSubscription?.active, isTrue);
+    expect(controller.canBuy('isolated.monthly'), isFalse);
+    expect(controller.canManage, isTrue);
+    expect(store.completions, 0);
+  });
+
+  test(
+      'known account conflict is not treated as login expiry or raw server text',
+      () async {
+    final dio = Dio();
+    dio.interceptors.add(InterceptorsWrapper(onRequest: (request, handler) {
+      handler.reject(DioException(
+          requestOptions: request,
+          type: DioExceptionType.badResponse,
+          response: Response(requestOptions: request, statusCode: 409, data: {
+            'error_code': 'APPLE_ACCOUNT_MISMATCH',
+            'message': 'PRIVATE_SENTINEL'
+          })));
+    }));
+    try {
+      await AuthService(dio: dio)
+          .verifyApplePurchase('isolated-session', 'isolated.signed.fixture');
+      fail('Expected account conflict');
+    } on AuthException catch (error) {
+      expect(error.code, 'APPLE_ACCOUNT_MISMATCH');
+      expect(error.isUnauthorized, isFalse);
+      expect(error.message, isNot(contains('PRIVATE_SENTINEL')));
+    }
   });
 
   test('unacknowledged server response never finishes transaction', () async {
@@ -509,12 +665,16 @@ ApplePurchaseController make(AppleStoreGateway store,
         {bool enabled = true,
         String Function()? session,
         Duration checkoutWait = const Duration(seconds: 90),
+        Duration verificationWait = const Duration(seconds: 65),
+        Duration operationWait = const Duration(seconds: 20),
         Future<Map<String, dynamic>> Function(String, String)? prepare,
         Future<Map<String, dynamic>> Function(String)? status,
         Future<Map<String, dynamic>> Function(String, String)? verify}) =>
     ApplePurchaseController(
         store: store,
         checkoutWait: checkoutWait,
+        verificationWait: verificationWait,
+        operationWait: operationWait,
         session: session ?? () => 'isolated-session',
         statusRequest: status ??
             (_) async =>
@@ -530,7 +690,8 @@ class _Store implements AppleStoreGateway {
   final double quote;
   final String currency;
   final events = StreamController<List<PurchaseDetails>>.broadcast();
-  int completions = 0, buyCalls = 0, restoreCalls = 0;
+  int completions = 0, buyCalls = 0, restoreCalls = 0, manageCalls = 0;
+  Future<void> Function()? restoreAction, manageAction;
   String? accountToken;
   List<PurchaseDetails> unfinishedRecords = [];
   Object? buyError;
@@ -570,6 +731,13 @@ class _Store implements AppleStoreGateway {
   @override
   Future<void> restore() async {
     restoreCalls++;
+    await restoreAction?.call();
+  }
+
+  @override
+  Future<void> manageSubscriptions() async {
+    manageCalls++;
+    await manageAction?.call();
   }
 
   @override
