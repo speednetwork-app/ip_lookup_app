@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/material.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:ip_lookup_app/main.dart';
 import 'package:ip_lookup_app/models/store_plan.dart';
@@ -44,6 +45,147 @@ Future<void> flush() async {
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  final activeSubscription = <String, dynamic>{
+    'product_id': 'isolated.monthly',
+    'plan_id': 800,
+    'environment': 'Sandbox',
+    'status': 1,
+    'active': true,
+    'expires_at': 1900000000,
+    'last_checked_at': 1800000000,
+    'auto_renew_enabled': false,
+  };
+
+  for (final dark in [false, true]) {
+    testWidgets('subscription controls remain usable with 2x text, dark=$dark',
+        (tester) async {
+      await tester.binding.setSurfaceSize(const Size(320, 700));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      tester.platformDispatcher.platformBrightnessTestValue =
+          dark ? Brightness.dark : Brightness.light;
+      addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+      final controller = make(_Store(),
+          status: (_) async => {
+                'purchase_enabled': true,
+                'restore_enabled': true,
+                'subscription': {
+                  ...activeSubscription,
+                  'auto_renew_enabled': true,
+                  'auto_renew_product_id': 'isolated.yearly'
+                },
+              });
+      addTearDown(controller.dispose);
+      await controller.load([plan]);
+      await tester.pumpWidget(MediaQuery(
+          data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+          child: MyApp(authProvider: _UiAuth(controller))));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('商城').last);
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(find.text('管理当前订阅'), 250,
+          scrollable: find.byType(Scrollable).last);
+      await tester.pumpAndSettle();
+      expect(find.text('管理当前订阅').hitTestable(), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('verified subscription is visible and cannot be purchased again',
+      (tester) async {
+    final store = _Store();
+    final controller = make(store,
+        status: (_) async => {
+              'purchase_enabled': true,
+              'restore_enabled': true,
+              'subscription': activeSubscription,
+            });
+    addTearDown(controller.dispose);
+    await controller.load([plan]);
+    await controller.buy('isolated.monthly');
+    expect(store.buyCalls, 0);
+    await tester.pumpWidget(MyApp(authProvider: _UiAuth(controller)));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('商城').last);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('沙盒测试'), findsOneWidget);
+    expect(find.text('✓ 当前已订阅'), findsOneWidget);
+    expect(find.text('管理当前订阅'), findsOneWidget);
+    expect(find.text('通过 Apple 订阅'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  test('acknowledged subscription survives a display-refresh outage', () async {
+    final store = _Store();
+    final controller = make(store,
+        status: (_) async => throw StateError('isolated outage'),
+        verify: (_, __) async => {
+              'acknowledged': true,
+              'active': true,
+              'subscription': activeSubscription
+            });
+    addTearDown(controller.dispose);
+    store.events.add([purchase()]);
+    await flush();
+    expect(store.completions, 1);
+    expect(controller.currentSubscription?.active, isTrue);
+    expect(controller.canBuy('isolated.monthly'), isFalse);
+    expect(controller.error, contains('刷新失败'));
+    controller.sessionChanged();
+    expect(controller.currentSubscription, isNull);
+  });
+
+  test('late pre-purchase status cannot erase the acknowledged subscription',
+      () async {
+    final store = _Store();
+    final beforePurchase = Completer<Map<String, dynamic>>();
+    var reads = 0;
+    final controller = make(store,
+        status: (_) async {
+          if (++reads == 1) return beforePurchase.future;
+          return {
+            'purchase_enabled': true,
+            'restore_enabled': true,
+            'subscription': activeSubscription
+          };
+        },
+        verify: (_, __) async => {
+              'acknowledged': true,
+              'active': true,
+              'subscription': activeSubscription
+            });
+    addTearDown(controller.dispose);
+    final loading = controller.load([plan]);
+    store.events.add([purchase()]);
+    await flush();
+    beforePurchase.complete({
+      'purchase_enabled': true,
+      'restore_enabled': true,
+      'subscription': null
+    });
+    await loading;
+    expect(controller.currentSubscription?.productId, 'isolated.monthly');
+    expect(controller.canBuy('isolated.monthly'), isFalse);
+  });
+
+  test('refresh updates cancellation and expiry without granting locally',
+      () async {
+    final store = _Store();
+    var state = activeSubscription;
+    final controller = make(store,
+        status: (_) async => {
+              'purchase_enabled': true,
+              'restore_enabled': true,
+              'subscription': state
+            });
+    addTearDown(controller.dispose);
+    await controller.load([plan]);
+    expect(controller.currentSubscription?.autoRenewEnabled, isFalse);
+    state = {...activeSubscription, 'active': false, 'status': 5};
+    await controller.refreshStatus();
+    expect(controller.currentSubscription?.stateLabel, '订阅已撤销');
+    expect(controller.canBuy('isolated.monthly'), isTrue);
+  });
 
   for (final currency in ['USD', 'EUR']) {
     testWidgets('store distinguishes live Apple quote from USD list: $currency',
@@ -249,12 +391,14 @@ ApplePurchaseController make(AppleStoreGateway store,
         {bool enabled = true,
         String Function()? session,
         Future<Map<String, dynamic>> Function(String, String)? prepare,
+        Future<Map<String, dynamic>> Function(String)? status,
         Future<Map<String, dynamic>> Function(String, String)? verify}) =>
     ApplePurchaseController(
         store: store,
         session: session ?? () => 'isolated-session',
-        statusRequest: (_) async =>
-            {'purchase_enabled': enabled, 'restore_enabled': enabled},
+        statusRequest: status ??
+            (_) async =>
+                {'purchase_enabled': enabled, 'restore_enabled': enabled},
         prepareRequest: prepare ??
             (_, id) async => {'product_id': id, 'app_account_token': token},
         verifyRequest:

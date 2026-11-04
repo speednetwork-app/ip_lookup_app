@@ -7,6 +7,7 @@ import '../providers/auth_provider.dart';
 import '../widgets/app_backdrop.dart';
 import '../widgets/app_page_title.dart';
 import '../widgets/app_surface.dart';
+import '../widgets/apple_subscription_summary.dart';
 import '../widgets/empty_state.dart';
 import 'privacy_screen.dart';
 
@@ -95,6 +96,17 @@ class StoreScreen extends StatelessWidget {
               style: theme.textTheme.bodySmall
                   ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
           const SizedBox(height: 16),
+          if (auth.applePurchases.currentSubscription
+              case final subscription?) ...[
+            AppSurface(
+                child: AppleSubscriptionSummary(
+                    subscription: subscription,
+                    planName: auth.storePlans
+                        .where((p) => p.id == subscription.planId)
+                        .firstOrNull
+                        ?.name)),
+            const SizedBox(height: 16),
+          ],
           if (auth.applePurchases.busy) const LinearProgressIndicator(),
           if (auth.applePurchases.error.isNotEmpty) ...[
             Text(auth.applePurchases.error,
@@ -122,12 +134,12 @@ class StoreScreen extends StatelessWidget {
                         builder: (_) => const PrivacyScreen())),
                 child: const Text('隐私与数据')),
             TextButton(
-                onPressed: () => _openLink(context,
+                onPressed: () => openLink(context,
                     'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/'),
                 child: const Text('使用条款')),
             if (auth.applePurchases.supported)
               TextButton(
-                  onPressed: () => _openLink(
+                  onPressed: () => openLink(
                       context, 'https://apps.apple.com/account/subscriptions'),
                   child: const Text('管理 Apple 订阅')),
           ]),
@@ -136,7 +148,7 @@ class StoreScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _openLink(BuildContext context, String url) async {
+  static Future<void> openLink(BuildContext context, String url) async {
     try {
       if (await launchUrl(Uri.parse(url),
           mode: LaunchMode.externalApplication)) {
@@ -164,11 +176,15 @@ class _PlanCardState extends State<_PlanCard> {
   @override
   Widget build(BuildContext context) {
     final plan = widget.plan;
+    final purchases = context.watch<AuthProvider>().applePurchases;
+    final subscription = purchases.currentSubscription;
     final offer = plan.offers.where((o) => o.period == _period).firstOrNull ??
+        plan.offers
+            .where((o) => o.productId == subscription?.productId)
+            .firstOrNull ??
         plan.offers.first;
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final purchases = context.watch<AuthProvider>().applePurchases;
     final appleProduct = purchases.product(offer.productId);
     // US storefront: use the live Apple quote, not a potentially stale list
     // price. Else retain the requested USD list alongside local settlement.
@@ -180,6 +196,9 @@ class _PlanCardState extends State<_PlanCard> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(plan.name, style: theme.textTheme.titleMedium),
+        if (subscription?.active == true &&
+            subscription?.productId == offer.productId)
+          const Text('✓ 当前已订阅'),
         const SizedBox(height: 12),
         Text('${_number(plan.trafficGb)} GB',
             style: theme.textTheme.headlineLarge?.copyWith(
@@ -245,18 +264,27 @@ class _PlanCardState extends State<_PlanCard> {
         ]),
         const SizedBox(height: 20),
         FilledButton(
-          onPressed: purchases.canBuy(offer.productId)
-              ? () => purchases.buy(offer.productId!)
-              : null,
+          onPressed: purchases.supported &&
+                  subscription?.active == true &&
+                  !purchases.busy
+              ? () => StoreScreen.openLink(
+                  context, 'https://apps.apple.com/account/subscriptions')
+              : purchases.canBuy(offer.productId)
+                  ? () => purchases.buy(offer.productId!)
+                  : null,
           child: Text(!purchases.supported
               ? '请在 iPhone／iPad App 内订阅'
               : purchases.busy
                   ? '正在处理 Apple 购买…'
-                  : purchases.canBuy(offer.productId)
-                      ? '通过 Apple 订阅'
-                      : purchases.canRestore && appleProduct == null
-                          ? 'Apple 商品暂不可用'
-                          : purchases.reason),
+                  : subscription?.active == true
+                      ? subscription?.productId == offer.productId
+                          ? '管理当前订阅'
+                          : '前往 Apple 管理套餐变更'
+                      : purchases.canBuy(offer.productId)
+                          ? '通过 Apple 订阅'
+                          : purchases.canRestore && appleProduct == null
+                              ? 'Apple 商品暂不可用'
+                              : purchases.reason),
         ),
       ],
     ));

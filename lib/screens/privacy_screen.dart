@@ -66,8 +66,10 @@ class PrivacyScreen extends StatelessWidget {
           const _InfoTile(
             icon: Icons.receipt_long_outlined,
             title: 'Apple 订阅与购买验证',
-            description: '使用应用内购买时，付款由 Apple 处理。服务器会验证并保存交易标识、商品、有效期'
+            description: '使用应用内购买时，付款由 Apple 处理。服务器会验证并保存交易标识、商品、币种和标价、有效期'
                 '及与皮卡云账号的关联，用于开通、恢复、续费和退款处理，不会获取银行卡信息。'
+                '收到的 Apple 签名通知加密保存。退出登录或卸载不会取消 Apple 订阅，'
+                '也不会删除服务端交易记录；请在 Apple 订阅设置中管理续订。'
                 '年付套餐按购买生效日每月重置额度，不一次发放全年流量。',
           ),
           const SizedBox(height: 16),
@@ -107,7 +109,7 @@ class PrivacyScreen extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           const Text(
-            '服务：api.pikayun.com、ipwho.is、ipapi.co、OpenStreetMap\n'
+            '服务：api.pikayun.com、Apple、ipwho.is、ipapi.co、OpenStreetMap\n'
             '隐私问题联系：info@robinads.agency',
             textAlign: TextAlign.center,
           ),

@@ -34,11 +34,11 @@
 <body>
 
 <h1>隐私政策</h1>
-<p class="sub">皮卡云 VPN · 最后更新：2026 年 11 月 2 日</p>
+<p class="sub">皮卡云 VPN · 最后更新：2026 年 11 月 4 日</p>
 
 <div class="note">
   <strong>简要说明：</strong>IP 查询无需登录。你可以通过邮箱注册或登录，查看账号概览和订阅地址，并选择开启 VPN。
-  注册不会自动购买套餐；本 App 不提供购买，不含广告、第三方统计或用户追踪。
+  注册不会自动购买套餐；iOS 商城可在开放时通过 Apple 订阅。不含广告、第三方统计或用户追踪。
 </div>
 
 <h2>一、我们收集哪些信息</h2>
@@ -76,7 +76,12 @@
   <tr>
     <td>登录凭证、账号概览、流量趋势和订阅地址</td>
     <td>api.pikayun.com</td>
-    <td>保持登录状态，并向已登录用户显示其只读账号信息、系统公告和订阅地址</td>
+    <td>保持登录状态，并向已登录用户显示账号信息、系统公告和订阅地址</td>
+  </tr>
+  <tr>
+    <td>Apple 签名交易凭证、交易标识、商品、币种和标价、有效期、续订／退款状态，以及随机生成的账号绑定标识</td>
+    <td>Apple 与 api.pikayun.com</td>
+    <td>验证购买、绑定皮卡云账号、开通与恢复订阅、同步续订和撤销；不获取 Apple ID 密码或银行卡资料</td>
   </tr>
 </table>
 
@@ -85,12 +90,13 @@
 <h2>三、数据存储在哪里</h2>
 <p>查询历史<strong>仅保存在你的设备本地</strong>，最多保留 50 条，不会同步到云端，
 也不会被任何人（包括我们）读取。你可以在「历史」页左滑删除单条记录，
-或点击右上角清空全部。<strong>卸载 App 即彻底删除所有数据。</strong></p>
+或点击右上角清空全部。历史入口位于「IP 检测」页右上角。<strong>卸载 App 会删除本机查询历史，不会取消 Apple 订阅或删除服务端交易记录。</strong></p>
 <p>登录成功后，登录凭证和账号邮箱保存在 iOS 钥匙串中，以便保持登录状态。密码不保存在
 本机。套餐状态、流量趋势、有效期和使用限制会安全缓存于本机，以便网络异常时继续显示；
 订阅地址不会写入该缓存，也不会写入查询历史。你可以在「我的」页退出登录，
 删除本机保存的登录凭证、邮箱和账号缓存。复制订阅地址后，内容将进入系统剪贴板，并受系统剪贴板
 机制管理。</p>
+<p>服务端保存必要的订阅绑定、验签结果和交易记录，用于开通、恢复、对账及处理退款争议；收到的 Apple 签名通知加密保存。交易资料不用于广告追踪。退出登录或卸载不会删除这些服务端资料，也不会自动停止续费；你可以在 Apple 的订阅设置中管理或取消续订。有关账号及交易资料的访问、删除或必要保留，请通过下方联系方式咨询。</p>
 
 <h2>四、网络服务</h2>
 <p>本 App 连接以下网络服务：</p>
@@ -99,6 +105,7 @@
   <li><a href="https://ipwhois.io/privacy" target="_blank" rel="noopener">ipwho.is</a> —— IP 归属地数据</li>
   <li><a href="https://ipapi.co/privacy/" target="_blank" rel="noopener">ipapi.co</a> —— IP 归属地数据（备用源）</li>
   <li><a href="https://osmfoundation.org/wiki/Privacy_Policy" target="_blank" rel="noopener">OpenStreetMap</a> —— 地图图块</li>
+  <li><a href="https://www.apple.com/legal/privacy/" target="_blank" rel="noopener">Apple</a> —— 应用内购买、订阅管理、交易验签和服务器通知</li>
 </ul>
 
 <h2>五、我们不做的事</h2>
@@ -106,8 +113,8 @@
   <li>不含任何广告或广告 SDK</li>
   <li>不含任何分析、埋点或崩溃统计工具</li>
   <li>不进行用户追踪，不请求 App 跟踪透明度（ATT）授权</li>
-  <li>不出售、使用或向第三方披露账号数据、登录凭证或订阅地址；这些数据仅用于向你提供登录和只读账号信息展示功能</li>
-  <li>注册不会自动购买套餐；不提供套餐购买或应用内购买</li>
+  <li>不出售账号数据，不向广告商提供登录凭证或订阅地址；账号数据用于提供账号、VPN 及订阅服务</li>
+  <li>注册不会自动购买套餐；Apple 订阅须由你在 Apple 购买页面确认</li>
   <li>不申请定位、相机、麦克风、通讯录等任何系统权限</li>
 </ul>
 
@@ -123,12 +130,12 @@
 <hr>
 
 <h1>Privacy Policy</h1>
-<p class="sub">Pikayun VPN · Last updated: 2 November 2026</p>
+<p class="sub">Pikayun VPN · Last updated: 4 November 2026</p>
 
 <div class="note">
   <strong>In short:</strong> IP lookup does not require an account. You may
   optionally register by email or sign in to view your account and subscription URL, and choose to use VPN. Registration does not purchase a plan. The
-  app offers no purchasing and contains no ads, third-party
+  iOS store offers Apple subscriptions when enabled. The app contains no ads, third-party
   analytics or user tracking.
 </div>
 
@@ -171,6 +178,11 @@ third-party IP database and receives the corresponding location details:</p>
     <td>api.pikayun.com</td>
     <td>Keep you signed in and display your subscription URL</td>
   </tr>
+  <tr>
+    <td>Signed Apple transactions, transaction identifiers, products, currency and price, expiry, renewal/refund status and a random account-binding identifier</td>
+    <td>Apple and api.pikayun.com</td>
+    <td>Verify, link, activate and restore subscriptions, and reconcile renewals or revocations. We do not receive your Apple ID password or payment card details.</td>
+  </tr>
 </table>
 
 <p>IP lookup requests do not include your account credential, and account
@@ -180,13 +192,14 @@ requests do not include your local lookup history.</p>
 <p>Lookup history is stored <strong>only on your device</strong>, capped at 50
 entries. It is never synced to any cloud service and cannot be read by anyone,
 including us. You can swipe to delete individual entries or clear the entire
-history at any time. <strong>Deleting the app removes all of it permanently.</strong></p>
+history at any time, via the top-right History entry on IP Check. <strong>Deleting the app removes local lookup history, not Apple subscriptions or server-side transaction records.</strong></p>
 <p>After a successful sign-in, the authentication credential and account email
 are stored in the iOS Keychain to maintain the session. Your password is not
 stored. The subscription URL is fetched after sign-in and is not written to
 lookup history. Signing out from the Account screen deletes the locally stored
 credential and email. If you copy the subscription URL, it is placed on the
 system clipboard and handled by the operating system's clipboard mechanisms.</p>
+<p>We retain necessary server-side subscription bindings, verification results and transaction records for activation, restoration, reconciliation and refund disputes. Received signed Apple notifications are encrypted at rest. These records are not used for advertising tracking. Signing out or deleting the app does not remove server-side records or cancel renewal. Manage or cancel subscriptions in Apple's subscription settings. Contact us below about access, deletion or necessary retention of account and transaction data.</p>
 
 <h2>4. Network Services</h2>
 <ul>
@@ -194,6 +207,7 @@ system clipboard and handled by the operating system's clipboard mechanisms.</p>
   <li><a href="https://ipwhois.io/privacy" target="_blank" rel="noopener">ipwho.is</a> — IP geolocation data</li>
   <li><a href="https://ipapi.co/privacy/" target="_blank" rel="noopener">ipapi.co</a> — IP geolocation data (fallback)</li>
   <li><a href="https://osmfoundation.org/wiki/Privacy_Policy" target="_blank" rel="noopener">OpenStreetMap</a> — map tiles</li>
+  <li><a href="https://www.apple.com/legal/privacy/" target="_blank" rel="noopener">Apple</a> — in-app purchases, subscription management, transaction verification and server notifications</li>
 </ul>
 
 <h2>5. What We Do Not Do</h2>
@@ -201,8 +215,8 @@ system clipboard and handled by the operating system's clipboard mechanisms.</p>
   <li>No advertising or ad SDKs</li>
   <li>No analytics, telemetry or crash-reporting tools</li>
   <li>No user tracking; we never request App Tracking Transparency permission</li>
-  <li>No selling, use or disclosure of account data, authentication credentials or subscription URLs to third parties; this data is used only to provide sign-in and subscription URL display to you</li>
-  <li>Registration does not purchase a plan; no plan purchasing or in-app purchases</li>
+  <li>We do not sell account data or provide authentication credentials or subscription URLs to advertisers; account data supports account, VPN and subscription services</li>
+  <li>Registration does not purchase a plan; Apple subscriptions require your confirmation on Apple's purchase screen</li>
   <li>No location, camera, microphone or contacts permissions requested</li>
 </ul>
 

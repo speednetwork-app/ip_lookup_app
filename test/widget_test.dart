@@ -138,7 +138,8 @@ void main() {
     expect(find.text('VPN 安全连接（可选）'), findsOneWidget);
 
     await tester.scrollUntilVisible(
-      find.textContaining('api.pikayun.com、ipwho.is、ipapi.co、OpenStreetMap'),
+      find.textContaining(
+          'api.pikayun.com、Apple、ipwho.is、ipapi.co、OpenStreetMap'),
       300,
       scrollable: find.byType(Scrollable).last,
     );
@@ -146,7 +147,7 @@ void main() {
     expect(find.textContaining('不申请 GPS 定位权限'), findsOneWidget);
     expect(
       find.textContaining(
-        'api.pikayun.com、ipwho.is、ipapi.co、OpenStreetMap',
+        'api.pikayun.com、Apple、ipwho.is、ipapi.co、OpenStreetMap',
       ),
       findsOneWidget,
     );

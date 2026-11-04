@@ -18,7 +18,7 @@ class HomeShell extends StatefulWidget {
   State<HomeShell> createState() => _HomeShellState();
 }
 
-class _HomeShellState extends State<HomeShell> {
+class _HomeShellState extends State<HomeShell> with WidgetsBindingObserver {
   int _index = 0;
   late final AuthProvider _auth;
 
@@ -63,6 +63,7 @@ class _HomeShellState extends State<HomeShell> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     final history = context.read<HistoryProvider>();
     Future.microtask(history.load);
     final auth = context.read<AuthProvider>();
@@ -74,8 +75,24 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _auth.confirmInsecureHy2 = null;
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed &&
+        _auth.isSignedIn &&
+        _auth.applePurchases.supported &&
+        !_auth.applePurchases.busy) {
+      _refreshSubscription();
+    }
+  }
+
+  Future<void> _refreshSubscription() async {
+    await _auth.applePurchases.refreshStatus();
+    if (mounted && _auth.isSignedIn) await _auth.refreshAccountData();
   }
 
   @override

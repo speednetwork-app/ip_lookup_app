@@ -12,6 +12,7 @@ import '../widgets/app_backdrop.dart';
 import '../widgets/app_page_title.dart';
 import '../widgets/traffic_trend_card.dart';
 import '../widgets/auth_form_components.dart';
+import '../widgets/apple_subscription_summary.dart';
 import 'about_screen.dart';
 import 'privacy_screen.dart';
 import 'register_screen.dart';
@@ -74,7 +75,10 @@ class _AccountScreenState extends State<AccountScreen> {
   Widget _buildAccount(BuildContext context, AuthProvider auth) {
     final overview = auth.overview;
     return RefreshIndicator.adaptive(
-      onRefresh: auth.refreshAccountData,
+      onRefresh: () async {
+        await auth.applePurchases.refreshStatus();
+        await auth.refreshAccountData();
+      },
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
@@ -107,7 +111,19 @@ class _AccountScreenState extends State<AccountScreen> {
                 ),
               ),
             ],
-            if (_AccountAlert.from(overview) case final alert?) ...[
+            if (auth.applePurchases.currentSubscription
+                case final subscription?) ...[
+              const SizedBox(height: 12),
+              _SectionCard(
+                  child: AppleSubscriptionSummary(subscription: subscription)),
+            ],
+            if (_AccountAlert.from(overview,
+                    hideExpiry: auth
+                                .applePurchases.currentSubscription?.active ==
+                            true &&
+                        auth.applePurchases.currentSubscription?.expiresAt ==
+                            overview.expiredAt)
+                case final alert?) ...[
               const SizedBox(height: 12),
               alert,
             ],
@@ -183,7 +199,8 @@ class _AccountAlert extends StatelessWidget {
   final String message;
   final bool isCritical;
 
-  static _AccountAlert? from(AccountOverview overview) {
+  static _AccountAlert? from(AccountOverview overview,
+      {bool hideExpiry = false}) {
     switch (overview.state) {
       case AccountState.suspended:
         return const _AccountAlert(
@@ -218,7 +235,9 @@ class _AccountAlert extends StatelessWidget {
         break;
     }
 
-    if (overview.remainingDays != null && overview.remainingDays! <= 7) {
+    if (!hideExpiry &&
+        overview.remainingDays != null &&
+        overview.remainingDays! <= 7) {
       return _AccountAlert(
         icon: Icons.schedule_outlined,
         title: '套餐即将到期',

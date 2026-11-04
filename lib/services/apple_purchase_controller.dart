@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 
 import '../models/store_plan.dart';
+import '../models/apple_subscription.dart';
 
 abstract class AppleStoreGateway {
   bool get supported;
@@ -77,6 +78,10 @@ class ApplePurchaseController extends ChangeNotifier {
   String _reason = 'Apple 购买暂未开放';
   String _error = '';
   String _message = '';
+  AppleSubscription? _currentSubscription;
+  AppleSubscription? get currentSubscription => _currentSubscription;
+  bool _statusLoading = false;
+  int _statusEpoch = 0;
 
   bool get supported => _store.supported;
   bool get busy => _busy;
@@ -89,6 +94,7 @@ class ApplePurchaseController extends ChangeNotifier {
       supported &&
       _available &&
       _enabled &&
+      _currentSubscription?.active != true &&
       !_busy &&
       id != null &&
       _products.containsKey(id);
@@ -110,7 +116,9 @@ class ApplePurchaseController extends ChangeNotifier {
 
   void sessionChanged() {
     _generation++;
+    _statusEpoch++;
     _products.clear();
+    _currentSubscription = null;
     _enabled = false;
     _restoreEnabled = false;
     _available = false;
@@ -124,16 +132,18 @@ class ApplePurchaseController extends ChangeNotifier {
   Future<void> load(List<StorePlan> plans) async {
     if (!supported || session().isEmpty || _disposed) return;
     final key = session(), generation = _generation;
+    final epoch = _statusEpoch;
     try {
       final status = await statusRequest(key);
-      if (!_current(key, generation)) return;
+      if (!_current(key, generation) || epoch != _statusEpoch) return;
       _enabled = status['purchase_enabled'] == true;
       _restoreEnabled = status['restore_enabled'] == true;
+      _currentSubscription = AppleSubscription.parse(status['subscription']);
       _reason = status['reason'] is String
           ? status['reason'] as String
           : 'Apple 购买暂未开放';
       _available = await _store.available();
-      if (!_current(key, generation)) return;
+      if (!_current(key, generation) || epoch != _statusEpoch) return;
       final ids = plans
           .expand((p) => p.offers)
           .map((o) => o.productId)
@@ -141,7 +151,7 @@ class ApplePurchaseController extends ChangeNotifier {
           .toSet();
       if (_available && ids.isNotEmpty) {
         final response = await _store.products(ids);
-        if (!_current(key, generation)) return;
+        if (!_current(key, generation) || epoch != _statusEpoch) return;
         _products.clear();
         if (response.error != null) {
           _error = 'Apple 商品价格暂未加载，请稍后刷新';
@@ -156,11 +166,37 @@ class ApplePurchaseController extends ChangeNotifier {
         _enqueue(_unfinished.values.toList());
       }
     } catch (_) {
-      if (_current(key, generation)) {
+      if (_current(key, generation) && epoch == _statusEpoch) {
         _enabled = false;
         _restoreEnabled = false;
         _setError('Apple 购买服务暂不可用，请稍后刷新');
       }
+    }
+  }
+
+  /// Called after returning from Apple's subscription settings. Never opens
+  /// the payment gate or grants access based on a local UI selection.
+  Future<void> refreshStatus() async {
+    if (!supported || _statusLoading || session().isEmpty || _disposed) return;
+    final key = session(), generation = _generation;
+    final epoch = _statusEpoch;
+    _statusLoading = true;
+    try {
+      final status = await statusRequest(key);
+      if (!_current(key, generation) || epoch != _statusEpoch) return;
+      _currentSubscription = AppleSubscription.parse(status['subscription']);
+      _enabled = status['purchase_enabled'] == true;
+      _restoreEnabled = status['restore_enabled'] == true;
+      _reason = status['reason'] as String? ?? 'Apple 购买暂未开放';
+      _error = '';
+    } catch (_) {
+      if (_current(key, generation) && epoch == _statusEpoch) {
+        _enabled = false;
+        _error = '订阅状态刷新失败，当前显示上次结果，请稍后刷新';
+      }
+    } finally {
+      _statusLoading = false;
+      _notify();
     }
   }
 
@@ -265,13 +301,20 @@ class ApplePurchaseController extends ChangeNotifier {
       final result = await verifyRequest(key, signed);
       if (!_current(key, generation)) return;
       if (result['acknowledged'] != true) throw StateError('Not acknowledged');
+      _statusEpoch++;
+      // Apply the acknowledged server snapshot immediately, before slower
+      // account refreshes. A failed refresh must not invite a second purchase.
+      _currentSubscription = AppleSubscription.parse(result['subscription']);
+      _enabled = false;
       if (purchase.pendingCompletePurchase) await _store.complete(purchase);
       if (!_current(key, generation)) return;
       _unfinished.remove(id);
-      await onEntitled();
+      try {
+        await onEntitled();
+      } catch (_) {/* Acknowledged purchase is durable. */}
+      await refreshStatus();
       if (!_current(key, generation)) return;
       _busy = false;
-      _error = '';
       _message =
           result['active'] == true ? '购买已验证，套餐已更新' : '购买记录已验证，当前没有有效的订阅权益';
       _notify();
