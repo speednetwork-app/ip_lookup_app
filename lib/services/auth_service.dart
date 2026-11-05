@@ -44,12 +44,30 @@ class AuthService {
       _appleIapRequest(token, '/status');
 
   Future<Map<String, dynamic>> prepareApplePurchase(
-          String token, String productId) =>
-      _appleIapRequest(token, '/prepare', data: {'product_id': productId});
+          String token, String productId,
+          {String? requestId, String? previousAttemptId}) =>
+      _appleIapRequest(token, '/prepare', data: {
+        'product_id': productId,
+        if (requestId != null) 'request_id': requestId,
+        if (previousAttemptId != null) 'previous_attempt_id': previousAttemptId,
+      });
 
-  Future<Map<String, dynamic>> verifyApplePurchase(
-          String token, String signed) =>
-      _appleIapRequest(token, '/verify', data: {'signed_transaction': signed});
+  Future<Map<String, dynamic>> verifyApplePurchase(String token, String signed,
+          {String? attemptId}) =>
+      _appleIapRequest(token, '/verify', data: {
+        'signed_transaction': signed,
+        if (attemptId != null) 'attempt_id': attemptId,
+      });
+
+  Future<Map<String, dynamic>> reportApplePurchaseEvent(String token,
+          {required String attemptId,
+          required String eventId,
+          required String event}) =>
+      _appleIapRequest(token, '/event', data: {
+        'attempt_id': attemptId,
+        'event_id': eventId,
+        'event': event,
+      });
 
   Future<Map<String, dynamic>> _appleIapRequest(String token, String path,
       {Map<String, dynamic>? data}) async {
@@ -70,6 +88,10 @@ class AuthService {
     } on AuthException {
       rethrow;
     } on DioException catch (error) {
+      if (path == '/prepare' && error.response?.statusCode == 409) {
+        throw const AuthException('暂不能购买此套餐，请刷新后重试或管理当前 Apple 订阅',
+            code: 'APPLE_PREPARE_REJECTED');
+      }
       if (error.response?.statusCode == 409 &&
           _asMap(error.response?.data)['error_code'] ==
               'APPLE_ACCOUNT_MISMATCH') {

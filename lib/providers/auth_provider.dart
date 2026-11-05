@@ -13,6 +13,7 @@ import '../models/registration_config.dart';
 import '../models/store_plan.dart';
 import '../services/account_cache.dart';
 import '../services/apple_purchase_controller.dart';
+import '../services/apple_purchase_audit.dart';
 import '../services/auth_service.dart';
 import '../services/session_storage.dart';
 import '../services/vpn_service.dart';
@@ -39,6 +40,12 @@ class AuthProvider with ChangeNotifier {
       statusRequest: _service.getAppleIapStatus,
       prepareRequest: _service.prepareApplePurchase,
       verifyRequest: _service.verifyApplePurchase,
+      audit: ApplePurchaseAudit(
+        service: _service,
+        storage: SecureAppleAuditStorage(),
+        owner: () => _email,
+        session: () => isSignedIn ? _token : '',
+      ),
       onEntitled: refreshAccountData,
       store: appleStore,
     );

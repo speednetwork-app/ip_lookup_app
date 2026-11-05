@@ -9,8 +9,10 @@ import 'package:ip_lookup_app/main.dart';
 import 'package:ip_lookup_app/models/store_plan.dart';
 import 'package:ip_lookup_app/providers/auth_provider.dart';
 import 'package:ip_lookup_app/services/apple_purchase_controller.dart';
+import 'package:ip_lookup_app/services/apple_purchase_audit.dart';
 import 'package:ip_lookup_app/services/auth_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'apple_purchase_audit_test.dart' show AuditFixture;
 
 const token = '11111111-2222-4333-8444-555555555555';
 const plan = StorePlan(
@@ -293,7 +295,7 @@ void main() {
       gate.complete({'acknowledged': true, 'active': true});
       await flush();
       expect(store.completions, 1);
-      expect(controller.message, contains('套餐已更新'));
+      expect(controller.message, contains('订阅状态已同步'));
     });
   }
 
@@ -659,6 +661,40 @@ void main() {
     expect(controller.canBuy('isolated.monthly'), isTrue);
     expect(store.completions, 0);
   });
+
+  test(
+      'native cancellation is reported and next checkout links its new attempt',
+      () async {
+    final f = AuditFixture(), store = _Store();
+    final controller = make(store, session: () => f.key, audit: f.create());
+    addTearDown(controller.dispose);
+    await controller.load([plan]);
+    await controller.buy('isolated.monthly');
+    store.events.add([purchase(PurchaseStatus.canceled)]);
+    await flush();
+    expect(f.payloads('/event').single['event'], 'cancelled');
+    await controller.buy('isolated.monthly');
+    expect(f.payloads('/prepare').last['previous_attempt_id'], isNotNull);
+    expect(store.buyCalls, 2);
+  });
+
+  test('checkout timeout audit does not invite another native payment',
+      () async {
+    final f = AuditFixture(), store = _Store();
+    final controller = make(store,
+        session: () => f.key,
+        audit: f.create(),
+        checkoutWait: const Duration(milliseconds: 25));
+    addTearDown(controller.dispose);
+    await controller.load([plan]);
+    await controller.buy('isolated.monthly');
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    await flush();
+    expect(f.payloads('/event').single['event'], 'timeout');
+    await controller.buy('isolated.monthly');
+    expect(store.buyCalls, 1);
+    expect(controller.canRestore, isTrue);
+  });
 }
 
 ApplePurchaseController make(AppleStoreGateway store,
@@ -669,9 +705,11 @@ ApplePurchaseController make(AppleStoreGateway store,
         Duration operationWait = const Duration(seconds: 20),
         Future<Map<String, dynamic>> Function(String, String)? prepare,
         Future<Map<String, dynamic>> Function(String)? status,
+        ApplePurchaseAudit? audit,
         Future<Map<String, dynamic>> Function(String, String)? verify}) =>
     ApplePurchaseController(
         store: store,
+        audit: audit,
         checkoutWait: checkoutWait,
         verificationWait: verificationWait,
         operationWait: operationWait,
