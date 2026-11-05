@@ -34,7 +34,7 @@
 <body>
 
 <h1>隐私政策</h1>
-<p class="sub">皮卡云 VPN · 最后更新：2026 年 11 月 4 日</p>
+<p class="sub">皮卡云 VPN · 最后更新：2026 年 11 月 5 日</p>
 
 <div class="note">
   <strong>简要说明：</strong>IP 查询无需登录。你可以通过邮箱注册或登录，查看账号概览和订阅地址，并选择开启 VPN。
@@ -94,9 +94,12 @@
 <p>登录成功后，登录凭证和账号邮箱保存在 iOS 钥匙串中，以便保持登录状态。密码不保存在
 本机。套餐状态、流量趋势、有效期和使用限制会安全缓存于本机，以便网络异常时继续显示；
 订阅地址不会写入该缓存，也不会写入查询历史。你可以在「我的」页退出登录，
-删除本机保存的登录凭证、邮箱和账号缓存。复制订阅地址后，内容将进入系统剪贴板，并受系统剪贴板
+删除本机保存的登录凭证、邮箱和账号缓存。用于恢复中断购买的最少操作记录（账号邮箱、随机操作编号、交易关联编号和待补报的操作结果）另行保存在钥匙串中，按账号隔离；不保存密码、签名交易凭证或付款资料，确认删除账户后会清除该账号的本机操作记录。复制订阅地址后，内容将进入系统剪贴板，并受系统剪贴板
 机制管理。</p>
-<p>服务端保存必要的订阅绑定、验签结果和交易记录，用于开通、恢复、对账及处理退款争议；收到的 Apple 签名通知加密保存。交易资料不用于广告追踪。退出登录或卸载不会删除这些服务端资料，也不会自动停止续费；你可以在 Apple 的订阅设置中管理或取消续订。有关账号及交易资料的访问、删除或必要保留，请通过下方联系方式咨询。</p>
+<p>服务端保存必要的订阅绑定、验签结果和交易记录，用于开通、恢复、对账及处理退款争议；收到的 Apple 签名通知加密保存。购买尝试、取消、待确认及验证结果会记录，用于恢复中断购买和防止重复下单。交易资料不用于广告追踪。退出登录或卸载不会删除这些服务端资料，也不会自动停止续费；你可以在 Apple 的订阅设置中管理或取消续订。</p>
+<h3>账户删除</h3>
+<p>登录后在「我的 → 删除账户」发起删除，核对说明、重新输入密码并确认。删除不是仅退出登录或暂时停用：将删除登录账户、邮箱和个人资料、非必要用量明细、工单内容，撤销全部设备的登录凭证与原订阅链接，终止该账号的剩余套餐使用权限。必要财务订单、交易资料及防重复认领标识按适用要求保留，以处理对账、退款和争议，不用于重新开通已删除账号或广告跟踪。数据清理遇到暂时故障时会重试，并在删除结果中说明。</p>
+<p><strong>删除账户不自动取消 Apple 订阅，也不自动退款。</strong>删除前请使用页面提供的 Apple 订阅管理入口取消不再需要的续订。本机 IP 查询历史不关联账号，可在隐私页面单独删除。尚有余额、佣金或正在处理的付款时，可在同一页面提交删除申请并查看进度；不会自动清零，结算完成后自动执行删除，无需重新申请。</p>
 
 <h2>四、网络服务</h2>
 <p>本 App 连接以下网络服务：</p>
@@ -199,7 +202,11 @@ stored. The subscription URL is fetched after sign-in and is not written to
 lookup history. Signing out from the Account screen deletes the locally stored
 credential and email. If you copy the subscription URL, it is placed on the
 system clipboard and handled by the operating system's clipboard mechanisms.</p>
-<p>We retain necessary server-side subscription bindings, verification results and transaction records for activation, restoration, reconciliation and refund disputes. Received signed Apple notifications are encrypted at rest. These records are not used for advertising tracking. Signing out or deleting the app does not remove server-side records or cancel renewal. Manage or cancel subscriptions in Apple's subscription settings. Contact us below about access, deletion or necessary retention of account and transaction data.</p>
+<p>Minimal interrupted-purchase records (account email, random operation references, transaction correlation references and pending operation results) are separately stored in the Keychain, isolated per account. They do not contain passwords, signed receipts or payment details. Signing out retains these records for recovery; confirmed account deletion clears that account's local records.</p>
+<p>We retain necessary server-side subscription bindings, verification results, purchase attempts and transaction records for activation, restoration, reconciliation, duplicate prevention and refund disputes. Received signed Apple notifications are encrypted at rest. These records are not used for advertising tracking. Signing out or deleting the app does not remove server-side records or cancel renewal. Manage or cancel subscriptions in Apple's subscription settings.</p>
+<h3>Account deletion</h3>
+<p>After signing in, open Account → Delete Account, review the consequences, re-enter your password and confirm. This deletes the login account, email, personal profile, nonessential usage details and support content, revokes all device sessions and the old subscription link, and ends remaining service access. Necessary financial orders, transaction records and anti-replay identifiers are retained under applicable financial and dispute requirements, not to recreate the account or track you for advertising. Temporary cleanup failures are retried and reflected in the result.</p>
+<p><strong>Account deletion does not cancel Apple subscriptions or automatically issue a refund.</strong> Use the subscription-management link before deleting. Local IP lookup history is independent and can be cleared separately. Accounts with a balance, commission or an in-flight payment can submit a deletion request and check its progress in the app. Funds are not automatically forfeited; deletion completes automatically after settlement, without a second request.</p>
 
 <h2>4. Network Services</h2>
 <ul>
