@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../widgets/service_data_disclosure.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../app_brand.dart';
@@ -153,12 +154,20 @@ class _ConnectionConsoleState extends State<_ConnectionConsole> {
       return;
     }
 
+    final account = auth.email;
+    if (!await ServiceDataDisclosure.ensureAccepted(context)) return;
+    if (!mounted || !auth.isSignedIn || auth.email != account) return;
     final preferences = await SharedPreferences.getInstance();
-    final accepted = preferences.getBool(_disclosureAcceptedKey) ?? false;
-    if (!accepted) {
+    if (!mounted || !auth.isSignedIn || auth.email != account) return;
+    if (preferences.getBool(_disclosureAcceptedKey) != true) {
       if (!mounted) return;
       final confirmed = await _showVpnDisclosure();
-      if (confirmed != true) return;
+      if (confirmed != true ||
+          !mounted ||
+          !auth.isSignedIn ||
+          auth.email != account) {
+        return;
+      }
       await preferences.setBool(_disclosureAcceptedKey, true);
     }
 

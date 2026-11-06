@@ -17,6 +17,8 @@ import '../services/apple_purchase_audit.dart';
 import '../services/auth_service.dart';
 import '../services/session_storage.dart';
 import '../services/vpn_service.dart';
+import '../models/account_deletion.dart';
+import '../services/account_deletion_storage.dart';
 
 enum AuthStatus { initializing, signedOut, signingIn, signedIn }
 
@@ -31,21 +33,25 @@ class AuthProvider with ChangeNotifier {
     AccountCache? cache,
     VpnService? vpnService,
     AppleStoreGateway? appleStore,
+    AppleAuditStorage? auditStorage,
+    AccountDeletionStorage? deletionStorage,
   })  : _service = service ?? AuthService(),
         _storage = storage ?? SecureSessionStorage(),
         _cache = cache ?? SharedPreferencesAccountCache(),
-        _vpnService = vpnService ?? MethodChannelVpnService() {
+        _vpnService = vpnService ?? MethodChannelVpnService(),
+        _deletionStorage = deletionStorage ?? SecureAccountDeletionStorage() {
+    _purchaseAudit = ApplePurchaseAudit(
+      service: _service,
+      storage: auditStorage ?? SecureAppleAuditStorage(),
+      owner: () => _email,
+      session: () => isSignedIn && !_deletingAccount ? _token : '',
+    );
     _applePurchases = ApplePurchaseController(
-      session: () => isSignedIn ? _token : '',
+      session: () => isSignedIn && !_deletingAccount ? _token : '',
       statusRequest: _service.getAppleIapStatus,
       prepareRequest: _service.prepareApplePurchase,
       verifyRequest: _service.verifyApplePurchase,
-      audit: ApplePurchaseAudit(
-        service: _service,
-        storage: SecureAppleAuditStorage(),
-        owner: () => _email,
-        session: () => isSignedIn ? _token : '',
-      ),
+      audit: _purchaseAudit,
       onEntitled: refreshAccountData,
       store: appleStore,
     );
@@ -62,6 +68,10 @@ class AuthProvider with ChangeNotifier {
   final SessionStorage _storage;
   final AccountCache _cache;
   final VpnService _vpnService;
+  final AccountDeletionStorage _deletionStorage;
+  late final ApplePurchaseAudit _purchaseAudit;
+  bool _deletingAccount = false;
+  bool get deletingAccount => _deletingAccount;
 
   AuthStatus _status = AuthStatus.initializing;
   String _email = '';
@@ -130,6 +140,9 @@ class AuthProvider with ChangeNotifier {
       ]);
       _token = values[0] ?? '';
       _email = values[1] ?? '';
+      try {
+        if (await _recoverAccountDeletion()) return;
+      } catch (_) {} // Network failure is not evidence of deletion.
       if (_token.isEmpty) {
         _status = AuthStatus.signedOut;
         notifyListeners();
@@ -183,7 +196,7 @@ class AuthProvider with ChangeNotifier {
     required Future<LoginResult> Function() request,
     bool isRegistration = false,
   }) async {
-    if (_status == AuthStatus.signingIn) return false;
+    if (_status == AuthStatus.signingIn || _deletingAccount) return false;
 
     _status = AuthStatus.signingIn;
     _error = '';
@@ -241,19 +254,28 @@ class AuthProvider with ChangeNotifier {
   }
 
   Future<void> refreshAccountData() async {
-    if (_token.isEmpty || _refreshing) return;
+    if (_token.isEmpty || _refreshing || _deletingAccount) return;
+    final token = _token;
     _refreshing = true;
     _trafficLoading = true;
     _error = '';
     notifyListeners();
 
     try {
-      _overview = await _service.getMobileOverview(_token);
+      final overview = await _service.getMobileOverview(token);
+      if (_token != token || _deletingAccount || !isSignedIn) {
+        _refreshing = false;
+        _trafficLoading = false;
+        return;
+      }
+      _overview = overview;
       await _cache.writeOverview(_overview!);
     } on AuthException catch (error) {
-      await _handleRefreshError(error);
+      if (_token == token && !_deletingAccount) {
+        await _handleRefreshError(error);
+      }
     } catch (_) {
-      _error = '获取账号信息失败，请稍后重试';
+      if (_token == token && !_deletingAccount) _error = '获取账号信息失败，请稍后重试';
     }
 
     if (_status == AuthStatus.signedIn) {
@@ -286,12 +308,15 @@ class AuthProvider with ChangeNotifier {
   }
 
   Future<void> refreshNetworkNodes() async {
-    if (_token.isEmpty || _nodesLoading) return;
+    if (_token.isEmpty || _nodesLoading || _deletingAccount) return;
+    final token = _token;
     _nodesLoading = true;
     _nodesError = '';
     notifyListeners();
     try {
-      _networkNodes = await _service.getNetworkNodes(_token);
+      final nodes = await _service.getNetworkNodes(token);
+      if (_token != token || _deletingAccount || !isSignedIn) return;
+      _networkNodes = nodes;
       final selectedStillAvailable = _networkNodes.any(
         (node) => node.id == _selectedNetworkNodeId && node.canConnect,
       );
@@ -316,7 +341,11 @@ class AuthProvider with ChangeNotifier {
   }
 
   Future<void> refreshStorePlans() async {
-    if (_storeDisposed || !isSignedIn || _token.isEmpty || _storeLoading) {
+    if (_storeDisposed ||
+        !isSignedIn ||
+        _token.isEmpty ||
+        _storeLoading ||
+        _deletingAccount) {
       return;
     }
     final token = _token;
@@ -407,7 +436,7 @@ class AuthProvider with ChangeNotifier {
   }
 
   Future<void> toggleVpn() async {
-    if (_vpnBusy) return;
+    if (_vpnBusy || _deletingAccount) return;
     _vpnBusy = true;
     _vpnError = '';
     notifyListeners();
@@ -527,11 +556,13 @@ class AuthProvider with ChangeNotifier {
   }
 
   Future<void> _loadTraffic(TrafficRange range) async {
-    if (_token.isEmpty || _trafficLoading) return;
+    if (_token.isEmpty || _trafficLoading || _deletingAccount) return;
+    final token = _token;
     _trafficLoading = true;
     notifyListeners();
     try {
-      final trend = await _service.getMobileTraffic(_token, range);
+      final trend = await _service.getMobileTraffic(token, range);
+      if (_token != token || _deletingAccount || !isSignedIn) return;
       _trafficTrends[range] = trend;
       await _cache.writeTrend(trend);
     } on AuthException catch (error) {
@@ -549,9 +580,11 @@ class AuthProvider with ChangeNotifier {
   }
 
   Future<void> _refreshTrafficTrend(TrafficRange range) async {
-    if (_status != AuthStatus.signedIn) return;
+    if (_status != AuthStatus.signedIn || _deletingAccount) return;
+    final token = _token;
     try {
-      final trend = await _service.getMobileTraffic(_token, range);
+      final trend = await _service.getMobileTraffic(token, range);
+      if (_token != token || _deletingAccount || !isSignedIn) return;
       _trafficTrends[range] = trend;
       await _cache.writeTrend(trend);
     } on AuthException catch (error) {
@@ -568,8 +601,12 @@ class AuthProvider with ChangeNotifier {
   }
 
   Future<void> _refreshNotices() async {
+    if (!isSignedIn || _deletingAccount) return;
+    final token = _token;
     try {
-      _notices = await _service.getAccountNotices(_token);
+      final notices = await _service.getAccountNotices(token);
+      if (_token != token || _deletingAccount || !isSignedIn) return;
+      _notices = notices;
     } on AuthException catch (error) {
       if (error.isUnauthorized) await _handleRefreshError(error);
       // Announcements are supplementary and must not block account data.
@@ -606,6 +643,7 @@ class AuthProvider with ChangeNotifier {
   }
 
   Future<void> logout() async {
+    if (_deletingAccount) return;
     try {
       await _vpnService.disconnect();
     } catch (_) {}
@@ -622,6 +660,85 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  Future<bool> _recoverAccountDeletion() async {
+    final account = _email, token = _token;
+    final operation = await _deletionStorage.read();
+    if (operation == null ||
+        (account.isNotEmpty && operation['owner'] != account)) {
+      return false;
+    }
+    final receipt = await _service.accountDeletionReceipt(operation);
+    if (_email != account || _token != token) return false;
+    if (receipt['confirmed'] != true || receipt['deleted'] != true) {
+      return false;
+    }
+    await _completeAccountDeletion(operation);
+    return true;
+  }
+
+  Future<AccountDeletionPreview> accountDeletionPreview() async {
+    if (!isSignedIn || _deletingAccount) throw const AuthException('请先登录');
+    if (await _recoverAccountDeletion()) throw const AuthException('账户已删除');
+    return _service.getAccountDeletionPreview(_token);
+  }
+
+  Future<Map<String, dynamic>> deleteAccount(String password) async {
+    if (!isSignedIn || _deletingAccount || _applePurchases.busy || _vpnBusy) {
+      throw const AuthException('请等待当前操作结束后再删除账户');
+    }
+    final token = _token, account = _email;
+    _deletingAccount = true;
+    _applePurchases.sessionChanged();
+    notifyListeners();
+    try {
+      var operation = await _deletionStorage.read();
+      if (operation != null && operation['owner'] != account) {
+        throw const AuthException('设备上还有其他账户的删除结果待核对，请先切回原账号处理');
+      }
+      operation ??= newDeletionOperation(account);
+      await _deletionStorage.write(operation);
+      await _vpnService.disconnect();
+      if (_token != token || _email != account || !isSignedIn) {
+        throw const AuthException('登录状态已变化');
+      }
+      final result = await _service.deleteAccount(token, password, operation);
+      if (result['deleted'] == true) await _completeAccountDeletion(operation);
+      return result;
+    } on AuthException catch (error) {
+      if (error.code == 'DELETION_REJECTED') await _deletionStorage.clear();
+      rethrow;
+    } finally {
+      _deletingAccount = false;
+      if (!_storeDisposed) {
+        notifyListeners();
+        if (isSignedIn && _applePurchases.supported) {
+          unawaited(refreshStorePlans());
+        }
+      }
+    }
+  }
+
+  Future<void> _completeAccountDeletion(Map<String, dynamic> operation) async {
+    final owner = operation['owner'] as String;
+    // The backend already revoked every token. Always drop the memory session,
+    // even when Keychain/cache cleanup needs to be retried on the next launch.
+    _clearMemorySession();
+    _status = AuthStatus.signedOut;
+    _error = '';
+    try {
+      await Future.wait<void>([
+        _vpnService.disconnect(),
+        _purchaseAudit.forgetOwner(owner),
+        _storage.clear(),
+        _cache.clear(),
+      ]);
+      await _deletionStorage.clear();
+    } catch (_) {
+      _error = '账户已删除；设备缓存清理未完成，请重新启动 App 重试';
+    }
+    if (!_storeDisposed) notifyListeners();
+  }
+
   void clearError() {
     if (_error.isEmpty) return;
     _error = '';
@@ -629,6 +746,8 @@ class AuthProvider with ChangeNotifier {
   }
 
   void _clearMemorySession() {
+    _refreshing = false;
+    _trafficLoading = false;
     _storeRequest++;
     _storePlans = const [];
     _storeLoading = false;

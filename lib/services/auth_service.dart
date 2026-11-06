@@ -7,6 +7,7 @@ import '../models/network_node.dart';
 import '../models/mobile_vpn_config.dart';
 import '../models/registration_config.dart';
 import '../models/store_plan.dart';
+import '../models/account_deletion.dart';
 
 class AuthException implements Exception {
   const AuthException(this.message, {this.isUnauthorized = false, this.code});
@@ -39,6 +40,77 @@ class AuthService {
             );
 
   final Dio _dio;
+
+  Future<AccountDeletionPreview> getAccountDeletionPreview(String token) async {
+    try {
+      final response = await _dio.get<dynamic>('/user/account/deletion',
+          options: Options(headers: {'Authorization': _bearer(token)}));
+      final body = _asMap(response.data);
+      if (body['status'] != 'success') throw const FormatException();
+      return AccountDeletionPreview.fromJson(_asMap(body['data']));
+    } on DioException catch (error) {
+      throw _friendlyDioError(error);
+    } catch (_) {
+      throw const AuthException('无法核对账户删除信息，请稍后重试');
+    }
+  }
+
+  Future<Map<String, dynamic>> accountDeletionReceipt(
+      Map<String, dynamic> operation) async {
+    final response =
+        await _dio.post<dynamic>('/passport/account-deletion/status', data: {
+      'request_id': operation['request_id'],
+      'receipt_secret': operation['receipt_secret'],
+    });
+    final body = _asMap(response.data);
+    if (body['status'] != 'success' || body['data'] is! Map) {
+      throw const FormatException();
+    }
+    return _asMap(body['data']);
+  }
+
+  Future<Map<String, dynamic>> deleteAccount(
+      String token, String password, Map<String, dynamic> operation) async {
+    try {
+      final response = await _dio.post<dynamic>('/user/account/deletion',
+          data: {
+            'password': password,
+            'confirmation': 'DELETE',
+            'acknowledged': true,
+            'request_id': operation['request_id'],
+            'receipt_secret': operation['receipt_secret']
+          },
+          options: Options(
+              headers: {'Authorization': _bearer(token)},
+              receiveTimeout: const Duration(seconds: 60)));
+      final body = _asMap(response.data);
+      final data = _asMap(body['data']);
+      if (body['status'] != 'success' ||
+          data['confirmed'] != true ||
+          (data['deleted'] != true && data['pending_settlement'] != true)) {
+        throw const FormatException();
+      }
+      return data;
+    } on DioException catch (error) {
+      // Read-only recovery, NEVER automatic destructive request resubmission.
+      try {
+        final receipt = await accountDeletionReceipt(operation);
+        if (receipt['confirmed'] == true &&
+            (receipt['deleted'] == true ||
+                receipt['pending_settlement'] == true)) {
+          return receipt;
+        }
+      } catch (_) {}
+      if (error.response?.statusCode == 422 ||
+          error.response?.statusCode == 429) {
+        throw AuthException(_friendlyDioError(error).message,
+            code: 'DELETION_REJECTED');
+      }
+      throw const AuthException('尚未确认删除结果。请稍后重新进入本页核对，不要重复提交。');
+    } catch (_) {
+      throw const AuthException('尚未确认删除结果。请稍后重新进入本页核对，不要重复提交。');
+    }
+  }
 
   Future<Map<String, dynamic>> getAppleIapStatus(String token) =>
       _appleIapRequest(token, '/status');

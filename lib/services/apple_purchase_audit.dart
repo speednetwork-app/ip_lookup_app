@@ -140,6 +140,11 @@ class ApplePurchaseAudit {
     return intent;
   }
 
+  Future<void> forgetOwner(String account) async {
+    await _edit((rows) => rows.removeWhere((row) => row['owner'] == account));
+    _launches.clear();
+  }
+
   Future<void> launched(String key, String product, String attempt) async {
     final account = owner();
     if (!_current(key, account)) throw StateError('Session changed');

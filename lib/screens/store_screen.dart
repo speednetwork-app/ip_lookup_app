@@ -9,7 +9,16 @@ import '../widgets/app_page_title.dart';
 import '../widgets/app_surface.dart';
 import '../widgets/apple_subscription_summary.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/service_data_disclosure.dart';
 import 'privacy_screen.dart';
+
+Future<void> _afterDisclosure(BuildContext context, AuthProvider auth,
+    Future<void> Function() action) async {
+  final account = auth.email;
+  if (!await ServiceDataDisclosure.ensureAccepted(context)) return;
+  if (!context.mounted || !auth.isSignedIn || auth.email != account) return;
+  await action();
+}
 
 class StoreScreen extends StatelessWidget {
   const StoreScreen({super.key, required this.onOpenAccount});
@@ -36,7 +45,8 @@ class StoreScreen extends StatelessWidget {
           if (auth.isSignedIn && auth.applePurchases.supported)
             TextButton(
               onPressed: auth.applePurchases.canRestore
-                  ? auth.applePurchases.restore
+                  ? () => _afterDisclosure(
+                      context, auth, auth.applePurchases.restore)
                   : null,
               child: const Text('恢复购买'),
             ),
@@ -152,7 +162,8 @@ class StoreScreen extends StatelessWidget {
             if (auth.applePurchases.supported)
               TextButton(
                   onPressed: auth.applePurchases.canManage
-                      ? auth.applePurchases.manageSubscriptions
+                      ? () => _afterDisclosure(context, auth,
+                          auth.applePurchases.manageSubscriptions)
                       : null,
                   child: const Text('管理 Apple 订阅')),
           ]),
@@ -281,9 +292,13 @@ class _PlanCardState extends State<_PlanCard> {
                   subscription?.active == true &&
                   purchases.canManage &&
                   !purchases.busy
-              ? purchases.manageSubscriptions
+              ? () => _afterDisclosure(context, context.read<AuthProvider>(),
+                  purchases.manageSubscriptions)
               : purchases.canBuy(offer.productId)
-                  ? () => purchases.buy(offer.productId!)
+                  ? () => _afterDisclosure(
+                      context,
+                      context.read<AuthProvider>(),
+                      () => purchases.buy(offer.productId!))
                   : null,
           child: Text(!purchases.supported
               ? '请在 iPhone／iPad App 内订阅'

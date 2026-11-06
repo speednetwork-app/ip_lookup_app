@@ -16,6 +16,7 @@ import '../widgets/apple_subscription_summary.dart';
 import 'about_screen.dart';
 import 'privacy_screen.dart';
 import 'register_screen.dart';
+import 'account_deletion_screen.dart';
 
 class AccountScreen extends StatefulWidget {
   const AccountScreen({super.key});
@@ -165,6 +166,17 @@ class _AccountScreenState extends State<AccountScreen> {
             ),
           ),
           const SizedBox(height: 10),
+          TextButton.icon(
+            onPressed: auth.deletingAccount
+                ? null
+                : () => Navigator.of(context).push(MaterialPageRoute<void>(
+                    builder: (_) => const AccountDeletionScreen())),
+            icon: const Icon(Icons.person_remove_outlined),
+            label: const Text('删除账户'),
+            style: TextButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.error,
+                minimumSize: const Size(double.infinity, 48)),
+          ),
           Text(
             '下拉页面可刷新账号信息',
             textAlign: TextAlign.center,

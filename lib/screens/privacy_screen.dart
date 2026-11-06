@@ -53,7 +53,7 @@ class PrivacyScreen extends StatelessWidget {
             description: '登录凭证和账号邮箱保存在 iOS 钥匙串中，用于保持登录状态；'
                 '套餐状态、流量趋势、有效期和使用限制会安全缓存于本机，以便网络异常时显示。'
                 '系统公告仅在登录后读取。订阅地址和公告不会写入普通缓存。'
-                '退出登录会删除本机账号数据。',
+                '退出登录会删除本机登录凭证和账号缓存；用于恢复中断购买的最少操作记录会另行保存在钥匙串中，按账号隔离。',
           ),
           const _InfoTile(
             icon: Icons.shield_outlined,
@@ -71,6 +71,16 @@ class PrivacyScreen extends StatelessWidget {
                 '收到的 Apple 签名通知加密保存。退出登录或卸载不会取消 Apple 订阅，'
                 '也不会删除服务端交易记录；请在 Apple 订阅设置中管理续订。'
                 '年付套餐按购买生效日每月重置额度，不一次发放全年流量。',
+          ),
+          const _InfoTile(
+            icon: Icons.manage_accounts_outlined,
+            title: '删除账户',
+            description:
+                '登录后可在“我的 → 删除账户”发起删除，重新验证密码并确认后，删除登录账户和非必要个人资料、撤销所有登录凭证与原订阅链接，终止该账号的套餐使用权益。'
+                '必要订单、交易记录和防重复认领标识按适用的财务与争议处理要求保留，不恢复账号、不用于广告跟踪。'
+                'Apple 自动续订不会因删除账号自动取消；请先在 Apple 订阅设置中取消，不自动退款。'
+                '有余额、佣金或正在处理的付款时，可先提交删除申请并在原页查看进度，结算完成后自动删除，不静默核销资金。'
+                '本机查询历史不关联账号，可在本页单独清除。',
           ),
           const SizedBox(height: 16),
           Text('我们不会做什么', style: Theme.of(context).textTheme.titleLarge),
